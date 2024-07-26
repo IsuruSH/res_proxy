@@ -8,9 +8,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+const noAccessStnum = ['12367', '12419', '12391', '12428', '12439',]; // Add the student numbers that should receive "No access" notification
+
 
 app.get('/results', async (req, res) => {
     const { stnum, rlevel } = req.query;
+    if (noAccessStnum.includes(stnum)) {
+        return res.status(403).json({ message: 'No access to results for this student number' });
+    }
+
     const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${stnum}&rlevel=${rlevel}`;
 
     try {
@@ -30,6 +36,7 @@ app.get('/results', async (req, res) => {
             'C-': 1.7,
             'D+': 1.3,
             'D': 1.0,
+            'E': 0.0,
             'E*': 0.0,
             'E+': 0.0,
             'E-': 0.0,
@@ -63,13 +70,13 @@ app.get('/results', async (req, res) => {
                         credit = 3;
                         break;    
                     case 'α':
-                        credit = 1.25;
+                        credit = 1.5;
                         break;
                     case 'β':
                         credit = 2.5;
                         break;
                     case 'δ':
-                        credit = 1.5;
+                        credit = 1.25;
                         break;
                     default:
                         credit = 1;

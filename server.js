@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-const noAccessStnum = ['12367', '12419', '12391', '12428', '12439',]; // Add the student numbers that should receive "No access" notification
+const noAccessStnum = ['12419', '12391', '12428', '12439',]; // Add the student numbers that should receive "No access" notification
 
 
 app.get('/results', async (req, res) => {

@@ -43,7 +43,7 @@ app.get('/results', async (req, res) => {
           $('tr.trbgc').each((i, el) => {
             const subjectCode = $(el).find('td').eq(0).text().trim();
             const grade = $(el).find('td').eq(2).text().trim();
-            console.log(`${subjectCode}: ${grade}`);
+            // console.log(`${subjectCode}: ${grade}`);
           
             if (grades.hasOwnProperty(grade)) {
               const lastChar = subjectCode.slice(-1);

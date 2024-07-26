@@ -8,16 +8,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-const noAccessStnum = ['12419', '12391', '12428', '12439',]; // Add the student numbers that should receive "No access" notification
+const noAccessStnum = ['12419', '12391', '12428', '12439', '12373']; // Add the student numbers that should receive "No access" notification
 
 
 app.get('/results', async (req, res) => {
     const { stnum, rlevel } = req.query;
-    if (noAccessStnum.includes(stnum)) {
+    const strippedStnum = stnum.startsWith(9) ? stnum.slice(1) : stnum;
+
+    // Check if the stripped student number is in the no access list
+    if (noAccessStnum.includes(strippedStnum) && !stnum.startsWith(9)) {
         return res.status(403).json({ message: 'No access to results for this student number' });
     }
 
-    const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${stnum}&rlevel=${rlevel}`;
+    const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
+
 
     try {
         const response = await fetch(url);

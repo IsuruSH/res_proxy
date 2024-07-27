@@ -13,6 +13,7 @@ const noAccessStnum = ['12419', '12391', '12428', '12439', '12373']; // Add the 
 
 app.get('/results', async (req, res) => {
     const { stnum, rlevel } = req.query;
+    console.log(stnum);
     const strippedStnum = stnum.startsWith(9) ? stnum.slice(1) : stnum;
 
     // Check if the stripped student number is in the no access list

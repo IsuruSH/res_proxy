@@ -103,7 +103,16 @@ app.get('/results', async (req, res) => {
                         break;
                     case '3':
                         credit = 3;
-                        break;    
+                        break; 
+                    case '4':
+                        credit = 4;
+                        break;
+                    case '5':
+                        credit = 5;
+                        break;
+                    case '6':
+                        credit = 6;
+                        break;        
                     case 'α':
                         credit = 1.5;
                         break;

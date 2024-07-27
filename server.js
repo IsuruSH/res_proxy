@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 const noAccessStnum = ['12419', '12391', '12428', '12439', '12373', '12019']; // Add the student numbers that should receive "No access" notification
+const nonCreditSubjects = ['MAT1142', 'ICT1B13'];
 
 
 app.get('/results', async (req, res) => {
@@ -88,6 +89,8 @@ app.get('/results', async (req, res) => {
           
           
             for (const [subjectCode, { grade, year }] of Object.entries(latestAttempts)) {
+
+                if (nonCreditSubjects.includes(subjectCode)) continue;
                 const lastChar = subjectCode.slice(-1);
                 let credit;
 
@@ -122,9 +125,7 @@ app.get('/results', async (req, res) => {
                     case 'δ':
                         credit = 1.25;
                         break;
-                    default:
-                        credit = 1;
-                        break;
+                    
                 }
 
                 totalCredits += credit;

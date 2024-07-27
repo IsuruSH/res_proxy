@@ -60,14 +60,24 @@ app.get('/results', async (req, res) => {
           let phyCredits = 0;
           let phyGradePoints = 0;
   
+          const latestAttempts = {};
+
+            // Process all rows to find the latest attempts
+            $('tr.trbgc, tr.selectbg').each((i, el) => {
+                const subjectCode = $(el).find('td').eq(0).text().trim() || $(el).find('td').eq(0).text().split(' ')[4];
+                const grade = $(el).find('td').eq(2).text().trim();
+                const year = parseInt($(el).find('td').eq(3).text().trim());
+
+                if (grades.hasOwnProperty(grade)) {
+                    if (!latestAttempts[subjectCode] || latestAttempts[subjectCode].year > year) {
+                        latestAttempts[subjectCode] = { grade, year };
+                    }
+                }
+            });
           
-          $('tr.trbgc').each((i, el) => {
-            const subjectCode = $(el).find('td').eq(0).text().trim();
-            const grade = $(el).find('td').eq(2).text().trim();
-            // console.log(`${subjectCode}: ${grade}`);
           
-            if (grades.hasOwnProperty(grade)) {
-              const lastChar = subjectCode.slice(-1);
+            for (const [subjectCode, { grade, year }] of Object.entries(latestAttempts)) {
+                const lastChar = subjectCode.slice(-1);
                 let credit;
 
                 switch (lastChar) {
@@ -116,8 +126,9 @@ app.get('/results', async (req, res) => {
                         phyGradePoints += grades[grade] * credit;
                         break;
                 }    
+
+                // console.log(`${subjectCode}, ${year}: ${grade}`);
             }
-          });
           
           const gpa = totalGradePoints / totalCredits;
           const mathGpa = mathGradePoints / mathCredits;

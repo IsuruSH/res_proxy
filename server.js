@@ -50,6 +50,16 @@ app.get('/results', async (req, res) => {
           
           let totalCredits = 0;
           let totalGradePoints = 0;
+
+          let mathCredits = 0;
+          let mathGradePoints = 0;
+
+          let chemCredits = 0;
+          let chemGradePoints = 0;
+
+          let phyCredits = 0;
+          let phyGradePoints = 0;
+  
           
           $('tr.trbgc').each((i, el) => {
             const subjectCode = $(el).find('td').eq(0).text().trim();
@@ -89,10 +99,30 @@ app.get('/results', async (req, res) => {
 
                 totalCredits += credit;
                 totalGradePoints += grades[grade] * credit;
+
+                switch (true) {
+                    case subjectCode.startsWith('AMT'):
+                    case subjectCode.startsWith('IMT'):
+                    case subjectCode.startsWith('MAT'):
+                        mathCredits += credit;
+                        mathGradePoints += grades[grade] * credit;
+                        break;
+                    case subjectCode.startsWith('CHE'):
+                        chemCredits += credit;
+                        chemGradePoints += grades[grade] * credit;
+                        break;
+                    case subjectCode.startsWith('PHY'):
+                        phyCredits += credit;
+                        phyGradePoints += grades[grade] * credit;
+                        break;
+                }    
             }
           });
           
           const gpa = totalGradePoints / totalCredits;
+          const mathGpa = mathGradePoints / mathCredits;
+          const chemGpa = chemGradePoints / chemCredits;
+          const phyGpa = phyGradePoints / phyCredits;
           
           
         // console.log(response);
@@ -100,7 +130,10 @@ app.get('/results', async (req, res) => {
         
         const result = {
           data,
-          gpa: gpa.toFixed(2)
+          gpa: gpa.toFixed(2),
+          mathGpa: mathGpa.toFixed(2),
+          cheGpa: chemGpa.toFixed(2),
+          phyGpa: phyGpa.toFixed(2)
       };
 
       res.json(result);

@@ -59,12 +59,22 @@ app.get('/results', async (req, res) => {
 
           let phyCredits = 0;
           let phyGradePoints = 0;
+
+          let zooCredits = 0;
+          let zooGradePoints = 0;
+
+          let botCredits = 0;
+          let botGradePoints = 0;
+          
+          let csCredits = 0;
+          let csGradePoints = 0;
   
           const latestAttempts = {};
 
             // Process all rows to find the latest attempts
             $('tr.trbgc, tr.selectbg').each((i, el) => {
-                const subjectCode = $(el).find('td').eq(0).text().trim() || $(el).find('td').eq(0).text().split(' ')[4];
+                const subjectCode = $(el).find('td').eq(0).text().trim() || $(el).find('td').eq(0).text().trim();
+                // console.log(subjectCode);
                 const grade = $(el).find('td').eq(2).text().trim();
                 const year = parseInt($(el).find('td').eq(3).text().trim());
 
@@ -125,6 +135,18 @@ app.get('/results', async (req, res) => {
                         phyCredits += credit;
                         phyGradePoints += grades[grade] * credit;
                         break;
+                    case subjectCode.startsWith('ZOO'):
+                        zooCredits += credit;
+                        zooGradePoints += grades[grade] * credit;
+                        break;
+                    case subjectCode.startsWith('BOT'):
+                        botCredits += credit;
+                        botGradePoints += grades[grade] * credit;
+                        break;
+                    case subjectCode.startsWith('COM'):    
+                        csCredits += credit;
+                        csGradePoints += grades[grade] * credit;
+                        break;
                 }    
 
                 // console.log(`${subjectCode}, ${year}: ${grade}`);
@@ -134,6 +156,9 @@ app.get('/results', async (req, res) => {
           const mathGpa = mathGradePoints / mathCredits;
           const chemGpa = chemGradePoints / chemCredits;
           const phyGpa = phyGradePoints / phyCredits;
+          const zooGpa = zooGradePoints / zooCredits;
+          const botGpa = botGradePoints / botCredits;
+          const csGpa = csGradePoints / csCredits;
           
           
         // console.log(response);
@@ -144,7 +169,10 @@ app.get('/results', async (req, res) => {
           gpa: gpa.toFixed(2),
           mathGpa: mathGpa.toFixed(2),
           cheGpa: chemGpa.toFixed(2),
-          phyGpa: phyGpa.toFixed(2)
+          phyGpa: phyGpa.toFixed(2),
+          zooGpa: zooGpa.toFixed(2),
+          botGpa: botGpa.toFixed(2),
+          csGpa: csGpa.toFixed(2) 
       };
 
       res.json(result);

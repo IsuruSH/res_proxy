@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 const noAccessStnum = ['12419', '12391', '12428', '12439', '12373', '12019', '11954']; // Add the student numbers that should receive "No access" notification
-const nonCreditSubjects = ['MAT1142', 'ICT1B13'];
+const nonCreditSubjects = ['MAT1142', 'ICT1B13', 'ENG1201'];
 
 
 app.get('/results', async (req, res) => {
@@ -72,24 +72,41 @@ app.get('/results', async (req, res) => {
           let csGradePoints = 0;
   
           const latestAttempts = {};
-
+           
             // Process all rows to find the latest attempts
-            $('tr.trbgc, tr.selectbg').each((i, el) => {
-                const subjectCode = $(el).find('td').eq(0).text().trim() || $(el).find('td').eq(0).text().trim();
+            $('tr.trbgc').each((i, el) => {
+                const subjectCode = $(el).find('td').eq(0).text().trim() || $(el).find('td').eq(0).text().trim().split(' ')[3];
                 // console.log(subjectCode);
                 const grade = $(el).find('td').eq(2).text().trim();
                 const year = parseInt($(el).find('td').eq(3).text().trim());
 
                 if (grades.hasOwnProperty(grade)) {
-                    if (!latestAttempts[subjectCode] || latestAttempts[subjectCode].year > year) {
+                    if (!latestAttempts[subjectCode] ) {
                         latestAttempts[subjectCode] = { grade, year };
+                        // console.log(`${subjectCode}, ${year}: ${grade}`);
                     }
+                }
+            });
+            $('tr.selectbg').each((i, el) => {
+                const subjectCode = $(el).find('td').eq(0).text().trim().split(' ')[3];
+                // console.log(subjectCode);
+                const grade = $(el).find('td').eq(1).text().trim();
+                const year = parseInt($(el).find('td').eq(2).text().trim());
+
+                
+
+                if (grades.hasOwnProperty(grade)) {
+
+                        latestAttempts[subjectCode] = { grade, year };
+                        // console.log(`${subjectCode}, ${year}: ${grade}`);
+                    
                 }
             });
           
           
             for (const [subjectCode, { grade, year }] of Object.entries(latestAttempts)) {
 
+                // console.log(`${subjectCode}, ${year}: ${grade}`);
                 if (nonCreditSubjects.includes(subjectCode)) continue;
                 const lastChar = subjectCode.slice(-1);
                 let credit;

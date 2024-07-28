@@ -103,7 +103,7 @@ app.get('/results', async (req, res) => {
                 if (grades.hasOwnProperty(grade)) {
                     if ( latestAttempts[subjectCode].year < year && grade !== 'MC') {
                         latestAttempts[subjectCode] = { grade, year };
-                        console.log(`${subjectCode}, ${year}: ${grade} ss`);
+                        // console.log(`${subjectCode}, ${year}: ${grade} ss`);
                     }
                 }
             });
@@ -111,7 +111,7 @@ app.get('/results', async (req, res) => {
           
             for (const [subjectCode, { grade, year }] of Object.entries(latestAttempts)) {
 
-                console.log(`${subjectCode}, ${year}: ${grade}`);
+                // console.log(`${subjectCode}, ${year}: ${grade}`);
                 if (nonCreditSubjects.includes(subjectCode)) continue;
                 const lastChar = subjectCode.slice(-1);
                 let credit;

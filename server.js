@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 const noAccessStnum = ['12419', '12391', '12428', '12439', '12373', '12019', '11954']; // Add the student numbers that should receive "No access" notification
 const nonCreditSubjects = ['MAT1142', 'ICT1B13', 'ENG1201'];
+const deceasedStnum = ['11845'];
 
 
 app.get('/results', async (req, res) => {
@@ -20,6 +21,10 @@ app.get('/results', async (req, res) => {
     // Check if the stripped student number is in the no access list
     if (noAccessStnum.includes(strippedStnum) && !stnum.startsWith(9)) {
         return res.status(403).json({ message: 'No access to results for this student number' });
+    }
+
+    if (deceasedStnum.includes(strippedStnum)) {
+        return res.status(200).json({ message: 'Rest in Peace' });
     }
 
     const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;

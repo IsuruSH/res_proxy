@@ -2,6 +2,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import * as cheerio from 'cheerio';
+import NodeCache from 'node-cache';
 
 
 const app = express();
@@ -11,6 +12,7 @@ app.use(cors());
 const noAccessStnum = ['12419', '12391', '12428', '12439', '12373', '12019', '11954']; // Add the student numbers that should receive "No access" notification
 const nonCreditSubjects = ['MAT1142', 'ICT1B13', 'ENG1201'];
 const deceasedStnum = ['11845'];
+
 
 
 app.get('/results', async (req, res) => {
@@ -206,13 +208,16 @@ app.get('/results', async (req, res) => {
           zooGpa: zooGpa.toFixed(2),
           botGpa: botGpa.toFixed(2),
           csGpa: csGpa.toFixed(2) 
-      };
+        };
+        // console.log(result);
 
       res.json(result);
     } catch (error) {
         res.status(500).send('Error fetching data');
     }
 });
+
+;
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

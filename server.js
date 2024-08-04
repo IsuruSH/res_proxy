@@ -18,10 +18,10 @@ const deceasedStnum = ['11845'];
 app.get('/results', async (req, res) => {
     const { stnum, rlevel } = req.query;
     console.log(stnum);
-    const strippedStnum = stnum.startsWith('a') ? stnum.slice(1) : stnum;
+    const strippedStnum = stnum.startsWith(0) ? stnum.slice(1) : stnum;
 
     // Check if the stripped student number is in the no access list
-    if (noAccessStnum.includes(strippedStnum) && !stnum.startsWith(9)) {
+    if (noAccessStnum.includes(strippedStnum) && !stnum.startsWith(0)) {
         return res.status(403).json({ message: 'No access to results for this student number' });
     }
 

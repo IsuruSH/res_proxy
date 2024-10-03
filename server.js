@@ -24,6 +24,8 @@ const noAccessStnum = [
   "11892",
   "11843",
   "12898",
+  "12903",
+  "12862",
 ]; // Add the student numbers that should receive "No access" notification
 const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
 const deceasedStnum = ["11845"];

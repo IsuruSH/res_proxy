@@ -2,7 +2,6 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import * as cheerio from "cheerio";
-import NodeCache from "node-cache";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,9 +27,8 @@ const deceasedStnum = ["11845"];
 
 app.get("/results", async (req, res) => {
   const { stnum, rlevel } = req.query;
-  const deviceInfo = req.headers["user-agent"];
 
-  console.log(`Student Number: ${stnum}, Device Info: ${deviceInfo}`);
+  console.log(`Student Number: ${stnum}`);
   const strippedStnum = stnum.startsWith(0) ? stnum.slice(1) : stnum;
 
   // Check if the stripped student number is in the no access list
@@ -428,6 +426,7 @@ app.get("/creditresults", async (req, res) => {
 
 app.post("/calculateGPA", async (req, res) => {
   const { stnum, subjects, grades: inputGrades } = req.body;
+  console.log(stnum);
   const url = `https://res-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
 
   try {
@@ -487,7 +486,6 @@ app.post("/calculateGPA", async (req, res) => {
 
       const lastChar = subjectCode.slice(-1);
       let credit;
-      console.log(lastChar);
 
       // Determine the credit value based on the last character
       switch (lastChar) {

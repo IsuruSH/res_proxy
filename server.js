@@ -2,6 +2,8 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import * as cheerio from "cheerio";
+import cron from "node-cron";
+import { exec } from "child_process";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +23,7 @@ const noAccessStnum = [
   "12411",
   "11892",
   "11843",
+  "12898",
 ]; // Add the student numbers that should receive "No access" notification
 const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
 const deceasedStnum = ["11845"];

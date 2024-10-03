@@ -17,6 +17,7 @@
     "express": "^4.19.2",
     "lodash": "^4.17.21",
     "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "redis": "^4.7.0"
   },

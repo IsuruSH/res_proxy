@@ -48,6 +48,7 @@ async function loginAndGetSession(username, password) {
 
   const cookies = response.headers.get("set-cookie");
   const sessionId = cookies.match(/PHPSESSID=([^;]+)/)[1]; // Extract PHPSESSID
+  console.log(sessionId);
 
   return sessionId;
 }

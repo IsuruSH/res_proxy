@@ -47,7 +47,8 @@ async function loginAndGetSession(username, password) {
   });
 
   const cookies = response.headers.get("set-cookie");
-  const sessionId = cookies.match(/PHPSESSID=([^;]+)/)[1]; // Extract PHPSESSID
+  const sessionIdMatch = cookies.match(/PHPSESSID=([^;]+)/);
+  const sessionId = sessionIdMatch ? sessionIdMatch[1] : null; // Check if match is found
 
   return sessionId;
 }

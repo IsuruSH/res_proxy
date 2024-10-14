@@ -58,6 +58,7 @@ app.get("/results", async (req, res) => {
     const response = await fetch(url, {
       headers: {
         Cookie: "PHPSESSID=fkj98aie0ej09lpsut606r3gn0", // Set the session ID here
+        referer: "https://paravi.ruh.ac.lk/fosmis/?view=admin&admin=11",
       },
     });
     const data = await response.text();

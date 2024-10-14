@@ -35,6 +35,23 @@ const noAccessStnum = [
 const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
 const deceasedStnum = ["11845"];
 
+async function loginAndGetSession(username, password) {
+  const loginUrl = "https://paravi.ruh.ac.lk/fosmis/login.php"; // Adjust this with actual login endpoint
+
+  const response = await fetch(loginUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: `username=${username}&password=${password}`, // Adjust form data keys
+  });
+
+  const cookies = response.headers.get("set-cookie");
+  const sessionId = cookies.match(/PHPSESSID=([^;]+)/)[1]; // Extract PHPSESSID
+
+  return sessionId;
+}
+
 app.get("/results", async (req, res) => {
   const { stnum, rlevel } = req.query;
 
@@ -57,8 +74,7 @@ app.get("/results", async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: "PHPSESSID=fkj98aie0ej09lpsut606r3gn0", // Set the session ID here
-        referer: "https://paravi.ruh.ac.lk/fosmis/?view=admin&admin=11",
+        Cookie: `PHPSESSID=${loginAndGetSession("sc12367", "Rashmi@2710")}`,
       },
     });
     const data = await response.text();

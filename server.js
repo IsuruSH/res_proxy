@@ -55,7 +55,11 @@ app.get("/results", async (req, res) => {
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        Cookie: "PHPSESSID=fkj98aie0ej09lpsut606r3gn0", // Set the session ID here
+      },
+    });
     const data = await response.text();
     // const json = await response.json();
     const $ = cheerio.load(data);

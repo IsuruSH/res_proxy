@@ -48,7 +48,7 @@ async function loginAndGetSession(username, password) {
 
   const cookies = response.headers.get("set-cookie");
   const sessionIdMatch = cookies.match(/PHPSESSID=([^;]+)/);
-  const sessionId = sessionIdMatch ? sessionIdMatch[1] : null; // Check if match is found
+  const sessionId = sessionIdMatch; // Check if match is found
 
   return sessionId;
 }

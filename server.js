@@ -48,7 +48,6 @@ async function loginAndGetSession(username, password) {
 
   const cookies = response.headers.get("set-cookie");
   const sessionId = cookies.match(/PHPSESSID=([^;]+)/)[1]; // Extract PHPSESSID
-  console.log(sessionId);
 
   return sessionId;
 }
@@ -71,11 +70,13 @@ app.get("/results", async (req, res) => {
   }
 
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
+  var cook = loginAndGetSession("sc12367", "Rashmi@2710");
+  console.log(cook);
 
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: `PHPSESSID=${loginAndGetSession("sc12367", "Rashmi@2710")}`,
+        Cookie: `PHPSESSID=${cook}`,
       },
     });
     const data = await response.text();

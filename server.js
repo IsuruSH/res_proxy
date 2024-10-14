@@ -70,7 +70,7 @@ app.get("/results", async (req, res) => {
   }
 
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
-  var cook = loginAndGetSession("sc12367", "Rashmi@2710");
+  var cook = await loginAndGetSession("sc12367", "Rashmi@2710");
   console.log(cook);
 
   try {

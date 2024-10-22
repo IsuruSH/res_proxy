@@ -77,7 +77,7 @@ app.get("/results", async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: `PHPSESSID=${cook}`,
+        Cookie: `PHPSESSID=pr14gjaojqi4c2kkenoovht5i1`,
       },
     });
     const data = await response.text();

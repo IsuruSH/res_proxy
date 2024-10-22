@@ -35,24 +35,6 @@ const noAccessStnum = [
 const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
 const deceasedStnum = ["11845"];
 
-async function loginAndGetSession(username, password) {
-  const loginUrl = "https://paravi.ruh.ac.lk/fosmis/login.php"; // Adjust this with actual login endpoint
-
-  const response = await fetch(loginUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `username=${username}&password=${password}`, // Adjust form data keys
-  });
-
-  const cookies = response.headers.get("set-cookie");
-  const sessionIdMatch = cookies;
-  const sessionId = sessionIdMatch; // Check if match is found
-
-  return sessionId;
-}
-
 app.get("/results", async (req, res) => {
   const { stnum, rlevel } = req.query;
 
@@ -71,15 +53,16 @@ app.get("/results", async (req, res) => {
   }
 
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
-  var cook = await loginAndGetSession("sc12367", "Rashmi@2710");
-  console.log(cook);
 
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: `PHPSESSID=pr14gjaojqi4c2kkenoovht5i1`,
+        Cookie: `PHPSESSID= `,
       },
     });
+    if (!response.ok) {
+      return res.status(response.status).send("Error fetching rank results");
+    }
     const data = await response.text();
     // const json = await response.json();
     const $ = cheerio.load(data);
@@ -103,8 +86,12 @@ app.get("/results", async (req, res) => {
       MC: 0.0,
     };
 
+    // Initialize variables for GPA calculations
+
     let totalCredits = 0;
     let totalGradePoints = 0;
+
+    // For subject-specific GPA calculations
 
     let mathCredits = 0;
     let mathGradePoints = 0;
@@ -124,7 +111,7 @@ app.get("/results", async (req, res) => {
     let csCredits = 0;
     let csGradePoints = 0;
 
-    const latestAttempts = {};
+    const latestAttempts = {}; // Object to track the latest attempts for each subject
 
     // Process all rows to find the latest attempts
     $("tr.trbgc").each((i, el) => {
@@ -135,6 +122,7 @@ app.get("/results", async (req, res) => {
       const grade = $(el).find("td").eq(2).text().trim();
       const year = parseInt($(el).find("td").eq(3).text().trim());
 
+      // If the grade exists in our grade points object, track the latest attempt
       if (grades.hasOwnProperty(grade)) {
         if (!latestAttempts[subjectCode]) {
           latestAttempts[subjectCode] = { grade, year };
@@ -142,12 +130,15 @@ app.get("/results", async (req, res) => {
         }
       }
     });
+
+    // Similarly check for other rows
     $("tr.selectbg").each((i, el) => {
       const subjectCode = $(el).find("td").eq(0).text().trim().split(" ")[3];
       // console.log(subjectCode);
       const grade = $(el).find("td").eq(1).text().trim();
       const year = parseInt($(el).find("td").eq(2).text().trim());
 
+      // Update latest attempt if the year is more recent
       if (grades.hasOwnProperty(grade)) {
         if (latestAttempts[subjectCode].year < year && grade !== "MC") {
           latestAttempts[subjectCode] = { grade, year };
@@ -156,6 +147,7 @@ app.get("/results", async (req, res) => {
       }
     });
 
+    // Calculate GPA based on the latest attempts
     for (const [subjectCode, { grade, year }] of Object.entries(
       latestAttempts
     )) {
@@ -200,6 +192,7 @@ app.get("/results", async (req, res) => {
       totalCredits += credit;
       totalGradePoints += grades[grade] * credit;
 
+      // Subject-specific credit and grade calculations
       switch (true) {
         case subjectCode.startsWith("AMT"):
         case subjectCode.startsWith("IMT"):
@@ -232,6 +225,7 @@ app.get("/results", async (req, res) => {
       // console.log(`${subjectCode}, ${year}: ${grade}`);
     }
 
+    // Calculate the final GPA and subject-specific GPAs
     const gpa = totalGradePoints / totalCredits;
     const mathGpa = mathGradePoints / mathCredits;
     const chemGpa = chemGradePoints / chemCredits;

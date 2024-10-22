@@ -63,6 +63,8 @@ Copy code
   "botGpa": "3.70",
   "csGpa": "3.90"
 }
+
+```
 Special Cases
 No Access Students
 If a student number is in the noAccessStnum array, they will receive a "No access" notification.
@@ -71,10 +73,11 @@ Example
 If stnum=99999 is in the noAccessStnum array, the response will be:
 
 json
-Copy code
+```bash
 {
   "message": "No access for this student number."
 }
+```
 Deceased Students
 If a student number is in the deceasedStnum array, the response will be "Rest in Peace".
 
@@ -82,10 +85,11 @@ Example
 If stnum=88888 is in the deceasedStnum array, the response will be:
 
 json
-Copy code
+```bash
 {
   "message": "Rest in Peace."
 }
+```
 Non-Credit Subjects
 Subjects listed in the nonCredit array will not be considered when calculating the GPA. This ensures that only credit-bearing subjects are included in the GPA calculation.
 
@@ -98,7 +102,3 @@ The system handles special grading rules like multiple attempts and calculates G
 License
 This project is licensed under the MIT License.
 
-csharp
-Copy code
-
-This is a clean markdown version of the entire content, ready for pasting into your `README.md` file.

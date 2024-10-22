@@ -1,5 +1,3 @@
-markdown
-Copy code
 # GPA Calculator API
 
 This project is an Express.js-based API that fetches student results from a university portal and calculates the GPA for the student. It handles cases like specific students with restricted access, non-credit subjects, and deceased students.

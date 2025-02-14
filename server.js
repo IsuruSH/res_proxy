@@ -16,10 +16,6 @@ app.use(express.json());
 app.use(cookieParser());
 
 const corsOptions = {
-  // origin: (origin, callback) => {
-  //   // Allow all origins by checking origin value
-  //   callback(null, true); // Accept all origins
-  // },
   origin: "https://results.isurushanaka.me",
   credentials: true, // Allow sending cookies/credentials
 };

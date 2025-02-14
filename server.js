@@ -4,13 +4,32 @@ import cors from "cors";
 import * as cheerio from "cheerio";
 import cron from "node-cron";
 import { exec } from "child_process";
+import cookieParser from "cookie-parser";
+import tough from "tough-cookie";
+
+import fetchCookie from "fetch-cookie";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
+app.use(cookieParser());
 
-app.use(cors());
+const corsOptions = {
+  // origin: (origin, callback) => {
+  //   // Allow all origins by checking origin value
+  //   callback(null, true); // Accept all origins
+  // },
+  origin: "https://results.isurushanaka.me",
+  credentials: true, // Allow sending cookies/credentials
+};
+
+app.use(cors(corsOptions));
+
+const cookieJar = new tough.CookieJar();
+
+const fetchWithCookies = fetchCookie(fetch, cookieJar);
+
 const noAccessStnum = [
   "12419",
   "12391",
@@ -32,13 +51,87 @@ const noAccessStnum = [
   "11894",
   "12587",
 ]; // Add the student numbers that should receive "No access" notification
-const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
+const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201", "ICT2B13"];
 const deceasedStnum = ["11845"];
+
+async function getSessionAndLogin(username, password) {
+  try {
+    console.log(`Logging in as ${username} and ${password}`);
+    // Step 1: Get initial session ID from index.php
+    const indexResponse = await fetchWithCookies(
+      "https://paravi.ruh.ac.lk/fosmis2019/index.php"
+    );
+    const cookies = await cookieJar.getCookies(
+      "https://paravi.ruh.ac.lk/fosmis2019/index.php"
+    );
+    const sessionCookie = cookies.find((cookie) => cookie.key === "PHPSESSID");
+
+    const sessionId = sessionCookie ? sessionCookie.value : null;
+
+    // var sessionIdMatch = indexResponse.headers.get("set-cookie");
+    // sessionIdMatch = sessionIdMatch.match(/PHPSESSID=([^;]+)/);
+    // var sessionId = sessionIdMatch ? sessionIdMatch[1] : null;
+    // console.log(sessionId);
+
+    const loginResponse = await fetchWithCookies(
+      "https://paravi.ruh.ac.lk/fosmis2019/login.php",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: "https://paravi.ruh.ac.lk/fosmis2019/index.php",
+          Origin: "https://paravi.ruh.ac.lk",
+        },
+        Cookie: `PHPSESSID=${sessionId}`,
+        body: `uname=${username}&upwd=${password}`,
+      }
+    );
+
+    // Step 3: Follow redirect to complete login
+
+    return sessionId;
+  } catch (error) {
+    console.error("Login error:", error);
+    return null;
+  }
+}
+
+app.post("/init", async (req, res) => {
+  // var pwd = "isis2222";
+  var sessionId = await getSessionAndLogin(
+    req.body.username,
+    req.body.password
+  );
+  // sessionId = sessid;
+
+  // Simulate a generated session ID
+  // const sessionId = "hhj4c38bvbn6e1nmvfmj654aq3";
+
+  // Set the session ID as a cookie (if needed)
+  res.cookie("PHPSESSID", sessionId, {
+    path: "/",
+    // domain: "paravi.ruh.ac.lk",
+    httpOnly: false,
+    // secure: true,
+    // sameSite: "Strict", // Adjust as needed
+  });
+
+  // Send the session ID back in a JSON response
+  res.json({ sessionId });
+});
+
+app.post("/logout", (req, res) => {
+  res.clearCookie("PHPSESSID", { path: "/" }); // ✅ Clears session cookie
+  res.status(200).json({ message: "Logged out successfully" });
+});
 
 app.get("/results", async (req, res) => {
   const { stnum, rlevel } = req.query;
+  const phpsessid = req.headers["authorization"];
+  // const phpsessid = req.cookies.PHPSESSID;
 
   console.log(`Student Number: ${stnum}`);
+
   const strippedStnum = stnum.startsWith(0) ? stnum.slice(1) : stnum;
 
   // Check if the stripped student number is in the no access list
@@ -57,12 +150,11 @@ app.get("/results", async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: `PHPSESSID= `,
+        Cookie: `PHPSESSID=${phpsessid}`,
+        Referer: "https://paravi.ruh.ac.lk/fosmis/",
+        credentials: "include",
       },
     });
-    if (!response.ok) {
-      return res.status(response.status).send("Error fetching rank results");
-    }
     const data = await response.text();
     // const json = await response.json();
     const $ = cheerio.load(data);
@@ -86,12 +178,8 @@ app.get("/results", async (req, res) => {
       MC: 0.0,
     };
 
-    // Initialize variables for GPA calculations
-
     let totalCredits = 0;
     let totalGradePoints = 0;
-
-    // For subject-specific GPA calculations
 
     let mathCredits = 0;
     let mathGradePoints = 0;
@@ -111,7 +199,7 @@ app.get("/results", async (req, res) => {
     let csCredits = 0;
     let csGradePoints = 0;
 
-    const latestAttempts = {}; // Object to track the latest attempts for each subject
+    const latestAttempts = {};
 
     // Process all rows to find the latest attempts
     $("tr.trbgc").each((i, el) => {
@@ -122,7 +210,6 @@ app.get("/results", async (req, res) => {
       const grade = $(el).find("td").eq(2).text().trim();
       const year = parseInt($(el).find("td").eq(3).text().trim());
 
-      // If the grade exists in our grade points object, track the latest attempt
       if (grades.hasOwnProperty(grade)) {
         if (!latestAttempts[subjectCode]) {
           latestAttempts[subjectCode] = { grade, year };
@@ -130,15 +217,12 @@ app.get("/results", async (req, res) => {
         }
       }
     });
-
-    // Similarly check for other rows
     $("tr.selectbg").each((i, el) => {
       const subjectCode = $(el).find("td").eq(0).text().trim().split(" ")[3];
       // console.log(subjectCode);
       const grade = $(el).find("td").eq(1).text().trim();
       const year = parseInt($(el).find("td").eq(2).text().trim());
 
-      // Update latest attempt if the year is more recent
       if (grades.hasOwnProperty(grade)) {
         if (latestAttempts[subjectCode].year < year && grade !== "MC") {
           latestAttempts[subjectCode] = { grade, year };
@@ -147,7 +231,6 @@ app.get("/results", async (req, res) => {
       }
     });
 
-    // Calculate GPA based on the latest attempts
     for (const [subjectCode, { grade, year }] of Object.entries(
       latestAttempts
     )) {
@@ -192,7 +275,6 @@ app.get("/results", async (req, res) => {
       totalCredits += credit;
       totalGradePoints += grades[grade] * credit;
 
-      // Subject-specific credit and grade calculations
       switch (true) {
         case subjectCode.startsWith("AMT"):
         case subjectCode.startsWith("IMT"):
@@ -225,7 +307,6 @@ app.get("/results", async (req, res) => {
       // console.log(`${subjectCode}, ${year}: ${grade}`);
     }
 
-    // Calculate the final GPA and subject-specific GPAs
     const gpa = totalGradePoints / totalCredits;
     const mathGpa = mathGradePoints / mathCredits;
     const chemGpa = chemGradePoints / chemCredits;

@@ -4,13 +4,32 @@ import cors from "cors";
 import * as cheerio from "cheerio";
 import cron from "node-cron";
 import { exec } from "child_process";
+import cookieParser from "cookie-parser";
+import tough from "tough-cookie";
+
+import fetchCookie from "fetch-cookie";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
+app.use(cookieParser());
 
-app.use(cors());
+const corsOptions = {
+  // origin: (origin, callback) => {
+  //   // Allow all origins by checking origin value
+  //   callback(null, true); // Accept all origins
+  // },
+  origin: "http://127.0.0.1:3001",
+  credentials: true, // Allow sending cookies/credentials
+};
+
+app.use(cors(corsOptions));
+
+const cookieJar = new tough.CookieJar();
+
+const fetchWithCookies = fetchCookie(fetch, cookieJar);
+
 const noAccessStnum = [
   "12419",
   "12391",
@@ -32,31 +51,79 @@ const noAccessStnum = [
   "11894",
   "12587",
 ]; // Add the student numbers that should receive "No access" notification
-const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201"];
+const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201", "ICT2B13"];
 const deceasedStnum = ["11845"];
 
-async function loginAndGetSession(username, password) {
-  const loginUrl = "https://paravi.ruh.ac.lk/fosmis/login.php"; // Adjust this with actual login endpoint
+async function getSessionAndLogin(username, password) {
+  try {
+    // Step 1: Get initial session ID from index.php
+    const indexResponse = await fetchWithCookies(
+      "https://paravi.ruh.ac.lk/fosmis2019/index.php"
+    );
+    const cookies = await cookieJar.getCookies(
+      "https://paravi.ruh.ac.lk/fosmis2019/index.php"
+    );
+    const sessionCookie = cookies.find((cookie) => cookie.key === "PHPSESSID");
 
-  const response = await fetch(loginUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `username=${username}&password=${password}`, // Adjust form data keys
+    const sessionId = sessionCookie ? sessionCookie.value : null;
+    console.log(sessionId);
+    // var sessionIdMatch = indexResponse.headers.get("set-cookie");
+    // sessionIdMatch = sessionIdMatch.match(/PHPSESSID=([^;]+)/);
+    // var sessionId = sessionIdMatch ? sessionIdMatch[1] : null;
+    // console.log(sessionId);
+
+    const loginResponse = await fetch(
+      "https://paravi.ruh.ac.lk/fosmis2019/login.php",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: "https://paravi.ruh.ac.lk/fosmis2019/index.php",
+          Origin: "https://paravi.ruh.ac.lk",
+        },
+        Cookie: `PHPSESSID=${sessionId}`,
+        body: `uname=${username}&upwd=${password}`,
+      }
+    );
+
+    // Step 3: Follow redirect to complete login
+
+    return sessionId;
+  } catch (error) {
+    console.error("Login error:", error);
+    return null;
+  }
+}
+
+app.get("/init", async (req, res) => {
+  var pwd = "isis2222";
+  var sessid = "m287eo9su361jjd6rmpqhsj9l2";
+  var sessionId = await getSessionAndLogin("sc12367", pwd);
+  // sessionId = sessid;
+  console.log(sessionId);
+  // Simulate a generated session ID
+  // const sessionId = "hhj4c38bvbn6e1nmvfmj654aq3";
+
+  // Set the session ID as a cookie (if needed)
+  res.cookie("PHPSESSID", sessionId, {
+    path: "/",
+    // domain: "paravi.ruh.ac.lk",
+    httpOnly: false,
+    // secure: true,
+    // sameSite: "Strict", // Adjust as needed
   });
 
-  const cookies = response.headers.get("set-cookie");
-  const sessionIdMatch = cookies;
-  const sessionId = sessionIdMatch; // Check if match is found
-
-  return sessionId;
-}
+  // Send the session ID back in a JSON response
+  res.json({ sessionId });
+});
 
 app.get("/results", async (req, res) => {
   const { stnum, rlevel } = req.query;
+  const phpsessid = req.headers["authorization"];
+  // const phpsessid = req.cookies.PHPSESSID;
 
   console.log(`Student Number: ${stnum}`);
+  console.log(`PHPSESSID: ${phpsessid}`);
   const strippedStnum = stnum.startsWith(0) ? stnum.slice(1) : stnum;
 
   // Check if the stripped student number is in the no access list
@@ -71,13 +138,13 @@ app.get("/results", async (req, res) => {
   }
 
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
-  var cook = await loginAndGetSession("sc12367", "Rashmi@2710");
-  console.log(cook);
 
   try {
     const response = await fetch(url, {
       headers: {
-        Cookie: `PHPSESSID=pr14gjaojqi4c2kkenoovht5i1`,
+        Cookie: `PHPSESSID=r7gsh56dfdvbr94ooue2740a07`,
+        Referer: "https://paravi.ruh.ac.lk/fosmis/",
+        withCredentials: true,
       },
     });
     const data = await response.text();

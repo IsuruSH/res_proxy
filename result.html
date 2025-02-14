@@ -313,6 +313,47 @@
     </footer>
 
     <script>
+      const RESULT_URL = "http://localhost:4000";
+      const RANK_URL = "http://localhost:5000";
+      const phpSessionId = localStorage.getItem("PHPSESSID");
+      async function getSessionId() {
+        try {
+          // Check if session ID is already stored in localStorage
+          const existingSessionId = localStorage.getItem("PHPSESSID");
+
+          // if (existingSessionId) {
+          //   console.log("Session ID already exists:", existingSessionId);
+          //   return; // Exit the function if the session ID is already set
+          // }
+
+          // Send request to the server to get the session ID
+          const response = await fetch(`${RESULT_URL}/init`, {
+            method: "GET",
+            credentials: "include", // Include cookies in the request
+          });
+
+          // Ensure the request was successful
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          // Parse the session ID (assuming server returns { sessionId: "your-session-id" })
+          const data = await response.json();
+          const sessionId = data.sessionId;
+
+          // Store the session ID in localStorage and set it as a cookie
+          // document.cookie = `PHPSESSID=${sessionId}`;
+          localStorage.setItem("PHPSESSID", sessionId);
+
+          console.log("Session ID:", sessionId);
+        } catch (error) {
+          console.error("Failed to load session ID:", error);
+        }
+      }
+
+      // Call the function after the page loads
+      window.onload = getSessionId;
+
       document.addEventListener("DOMContentLoaded", function () {
         const stnumInput = document.getElementById("stnum");
 
@@ -343,9 +384,9 @@
         // Remove the parent div of the button (the form group containing the input fields)
         button.parentElement.remove();
       }
-      document.addEventListener("contextmenu", (event) =>
-        event.preventDefault()
-      );
+      // document.addEventListener("contextmenu", (event) =>
+      //   event.preventDefault()
+      // );
 
       // Handle form submission
       document
@@ -369,7 +410,7 @@
           };
 
           // Send data to the server
-          fetch("https://res-proxy.onrender.com/calculateGPA", {
+          fetch(`${RESULT_URL}/calculateGPA`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),
@@ -462,8 +503,15 @@
         const stnum = document.getElementById("stnum").value;
         const rlevel = document.getElementById("rlevel").value;
 
-        const url = `https://res-proxy.onrender.com/results?stnum=${stnum}&rlevel=${rlevel}`;
-        fetch(url)
+        const url = `${RESULT_URL}/results?stnum=${stnum}&rlevel=${rlevel}`;
+        fetch(url, {
+          method: "GET", // specify method if not already done
+          headers: {
+            authorization: phpSessionId, // Add the session ID as an authorization header
+          },
+          credentials: "include",
+          // Add this line to include cookies in the request
+        })
           .then((response) => {
             if (!response.ok) {
               throw new Error("No Access to View This Data");
@@ -588,7 +636,7 @@
           return;
         }
 
-        const url = `https://rank-proxy.onrender.com/calculateRank?startnum=${startnum}&endnum=${endnum}&stnum=${stnumrank}&gpatype=${gpatype}`;
+        const url = `${RANK_URL}/calculateRank?startnum=${startnum}&endnum=${endnum}&stnum=${stnumrank}&gpatype=${gpatype}`;
         fetch(url)
           .then((response) => response.json())
           .then((data) => {

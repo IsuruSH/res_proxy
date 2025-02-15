@@ -47,7 +47,14 @@ const noAccessStnum = [
   "11894",
   "12587",
 ]; // Add the student numbers that should receive "No access" notification
-const nonCreditSubjects = ["MAT1142", "ICT1B13", "ENG1201", "ICT2B13"];
+const nonCreditSubjects = [
+  "MAT1142",
+  "ICT1B13",
+  "ENG1201",
+  "ICT2B13",
+  "ENG2201",
+  "ENG3B10",
+];
 const deceasedStnum = ["11845"];
 
 async function getSessionAndLogin(username, password) {

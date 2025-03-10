@@ -90,29 +90,6 @@ async function getSessionAndLogin(username, password) {
         body: `uname=${username}&upwd=${password}`,
       }
     );
-    const buffer = await loginResponse.arrayBuffer();
-    const text = new TextDecoder().decode(buffer);
-
-    zlib.gunzip(buffer, (err, decoded) => {
-      if (err) {
-        console.error("Error decompressing response:", err);
-        return;
-      }
-
-      const body = decoded.toString();
-      console.log("Response Body:", body);
-
-      if (
-        body.includes("Invalid credentials") ||
-        body.includes("Login failed")
-      ) {
-        console.log("Login unsuccessful");
-      } else if (body.includes("Welcome") || body.includes("Dashboard")) {
-        console.log("Login successful");
-      } else {
-        console.log("Unknown response");
-      }
-    });
 
     // Step 3: Follow redirect to complete login
 

@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import tough from "tough-cookie";
 
 import fetchCookie from "fetch-cookie";
+import zlib from "zlib";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -89,6 +90,29 @@ async function getSessionAndLogin(username, password) {
         body: `uname=${username}&upwd=${password}`,
       }
     );
+    const buffer = await loginResponse.arrayBuffer();
+    const text = new TextDecoder().decode(buffer);
+
+    zlib.gunzip(buffer, (err, decoded) => {
+      if (err) {
+        console.error("Error decompressing response:", err);
+        return;
+      }
+
+      const body = decoded.toString();
+      console.log("Response Body:", body);
+
+      if (
+        body.includes("Invalid credentials") ||
+        body.includes("Login failed")
+      ) {
+        console.log("Login unsuccessful");
+      } else if (body.includes("Welcome") || body.includes("Dashboard")) {
+        console.log("Login successful");
+      } else {
+        console.log("Unknown response");
+      }
+    });
 
     // Step 3: Follow redirect to complete login
 
@@ -698,5 +722,6 @@ app.post("/calculateGPA", async (req, res) => {
 });
 
 app.listen(PORT, () => {
+  // getSessionAndLogin("sc12367", "isis2222");
   console.log(`Server is running on port ${PORT}`);
 });

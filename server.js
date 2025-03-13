@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 const corsOptions = {
-  origin: "https://results.isurushanaka.me",
+  origin: { "https://results.isurushanaka.me": "http://localhost:4000" },
   credentials: true, // Allow sending cookies/credentials
 };
 

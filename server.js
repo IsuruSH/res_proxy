@@ -62,6 +62,8 @@ async function getSessionAndLogin(username, password) {
   try {
     console.log(`Logging in as ${username} and ${password}`);
     // Step 1: Get initial session ID from index.php
+
+    await cookieJar.removeAllCookies();
     const indexResponse = await fetchWithCookies(
       "https://paravi.ruh.ac.lk/fosmis2019/index.php"
     );

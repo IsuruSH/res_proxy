@@ -550,7 +550,7 @@ app.post("/calculateGPA", async (req, res) => {
   const { stnum, subjects, grades: inputGrades } = req.body;
   const phpsessid = req.headers["authorization"];
 
-  const url = `https://res-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
+  const url = `https://rank-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
 
   try {
     const response = await fetch(url, {

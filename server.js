@@ -566,6 +566,7 @@ app.post("/calculateGPA", async (req, res) => {
     }
 
     const data = await response.json();
+    console.log(data);
     const gradeScale = {
       "A+": 4.0,
       A: 4.0,

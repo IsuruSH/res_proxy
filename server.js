@@ -341,6 +341,9 @@ app.get("/results", async (req, res) => {
 
 app.get("/creditresults", async (req, res) => {
   const { stnum, rlevel } = req.query;
+  const authHeader = req.headers["authorization"];
+  const phpsessid =
+    authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   const strippedStnum = stnum.startsWith(0) ? stnum.slice(1) : stnum;
 
@@ -358,7 +361,13 @@ app.get("/creditresults", async (req, res) => {
   const url = `https://paravi.ruh.ac.lk/fosmis2019/Ajax/result_filt.php?task=lvlfilt&stnum=${strippedStnum}&rlevel=${rlevel}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        Cookie: `PHPSESSID=${phpsessid}`,
+        Referer: "https://paravi.ruh.ac.lk/fosmis/",
+        credentials: "include",
+      },
+    });
     const data = await response.text();
     // const json = await response.json();
     const $ = cheerio.load(data);
@@ -539,11 +548,19 @@ app.get("/creditresults", async (req, res) => {
 
 app.post("/calculateGPA", async (req, res) => {
   const { stnum, subjects, grades: inputGrades } = req.body;
-  console.log(stnum);
+  const phpsessid = req.headers["authorization"];
+
   const url = `https://res-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        authorization: phpsessid,
+        Cookie: `PHPSESSID=${phpsessid}`,
+        Referer: "https://paravi.ruh.ac.lk/fosmis/",
+        credentials: "include",
+      },
+    });
     if (!response.ok) {
       return res.status(response.status).send("Error fetching rank results");
     }

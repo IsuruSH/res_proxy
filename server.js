@@ -423,9 +423,13 @@ app.get("/creditresults", async (req, res) => {
       const year = parseInt($(el).find("td").eq(2).text().trim());
 
       if (grades.hasOwnProperty(grade)) {
-        if (latestAttempts[subjectCode].year < year && grade !== "MC") {
+        if (
+          !latestAttempts[subjectCode] || // First occurrence
+          grades[grade] > grades[latestAttempts[subjectCode].grade] || // Higher grade found
+          (grades[grade] === grades[latestAttempts[subjectCode].grade] &&
+            latestAttempts[subjectCode].year < year) // Same grade, newer year
+        ) {
           latestAttempts[subjectCode] = { grade, year };
-          // console.log(`${subjectCode}, ${year}: ${grade} ss`);
         }
       }
     });

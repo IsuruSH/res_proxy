@@ -284,6 +284,7 @@ app.get("/results", async (req, res) => {
           botGradePoints += grades[grade] * credit;
           break;
         case subjectCode.startsWith("COM"):
+        case subjectCode.startsWith("CSC"):
           csCredits += credit;
           csGradePoints += grades[grade] * credit;
           break;

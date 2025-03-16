@@ -8,7 +8,6 @@ import cookieParser from "cookie-parser";
 import tough from "tough-cookie";
 
 import fetchCookie from "fetch-cookie";
-import zlib from "zlib";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -27,27 +26,7 @@ const cookieJar = new tough.CookieJar();
 
 const fetchWithCookies = fetchCookie(fetch, cookieJar);
 
-const noAccessStnum = [
-  "12419",
-  "12391",
-  "12428",
-  "12439",
-  "12373",
-  "12019",
-  "11954",
-  "12404",
-  "12411",
-  "11892",
-  "11843",
-  "12898",
-  "12903",
-  "12862",
-  "12893",
-  "12413",
-  "11936",
-  "11894",
-  "12587",
-]; // Add the student numbers that should receive "No access" notification
+const noAccessStnum = []; // Add the student numbers that should receive "No access" notification
 const nonCreditSubjects = [
   "MAT1142",
   "ICT1B13",

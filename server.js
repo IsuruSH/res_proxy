@@ -284,9 +284,6 @@ app.get("/results", async (req, res) => {
       }
     });
 
-    // Example output with subject names:
-    console.log("Repeated subjects with names:", repeatedSubjects);
-
     for (const [subjectCode, { grade, year }] of Object.entries(
       latestAttempts
     )) {

@@ -8,11 +8,11 @@ import cookieParser from "cookie-parser";
 import tough from "tough-cookie";
 
 import fetchCookie from "fetch-cookie";
+import { error } from "console";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(express.json());
 app.use(cookieParser());
 
 const corsOptions = {
@@ -21,6 +21,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(express.json());
 
 const cookieJar = new tough.CookieJar();
 
@@ -605,25 +606,31 @@ app.post("/calculateGPA", async (req, res) => {
   const { stnum, manualSubjects, repeatedSubjects } = req.body;
   const phpsessid = req.headers["authorization"];
 
-  console.log(`Student Number: ${stnum}`);
-  // console.log(`Manual Subjects: ${manualSubjects.subjects}`);
-  // console.log(`Repeated Subjects: ${repeatedSubjects.subjects}`);
+  console.log(`Student Numberss: ${stnum}`);
+
+  console.log(repeatedSubjects);
 
   const url = `https://rank-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
   // const url = `http://localhost:3001/creditresults?stnum=${stnum}&rlevel=4`;
 
   try {
     const response = await fetch(url, {
+      method: "POST",
+
       headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
         authorization: phpsessid,
         Cookie: `PHPSESSID=${phpsessid}`,
         Referer: "https://paravi.ruh.ac.lk/fosmis/",
         credentials: "include",
-        repeatedSubjects: JSON.stringify(repeatedSubjects),
+        // repeatedSubjects: JSON.stringify(repeatedSubjects),
       },
+      body: JSON.stringify({ repeatedSubjects }),
     });
+    console.log(response);
     if (!response.ok) {
-      return res.status(response.status).send("Error fetching rank results");
+      return res.status(response.status).send(error.message);
     }
 
     const data = await response.json();
@@ -773,7 +780,7 @@ app.post("/calculateGPA", async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).send("Error fetching data");
+    res.status(500).send(error.message);
   }
 });
 

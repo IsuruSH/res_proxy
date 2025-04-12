@@ -185,40 +185,107 @@ app.get("/results", async (req, res) => {
     let csGradePoints = 0;
 
     const latestAttempts = {};
+    const repeatedSubjects = [];
+    const allAttempts = {}; // Track all attempts for repeat detection
 
-    // Process all rows to find the latest attempts
+    // Process all rows to find the latest attempts AND collect all attempts
     $("tr.trbgc").each((i, el) => {
+      const fullSubjectText = $(el).find("td").eq(0).text().trim();
+      const subjectParts = fullSubjectText.split(/\s+/);
       const subjectCode =
-        $(el).find("td").eq(0).text().trim() ||
-        $(el).find("td").eq(0).text().trim().split(" ")[3];
-      // console.log(subjectCode);
+        subjectParts.length > 3 ? subjectParts[3] : subjectParts[0];
+      const subjectName = $(el).find("td").eq(1).text().trim(); // Get first 3 parts as name
       const grade = $(el).find("td").eq(2).text().trim();
       const year = parseInt($(el).find("td").eq(3).text().trim());
 
       if (grades.hasOwnProperty(grade)) {
-        if (!latestAttempts[subjectCode]) {
-          latestAttempts[subjectCode] = { grade, year };
-          // console.log(`${subjectCode}, ${year}: ${grade}`);
+        // Track all attempts with subject name
+        if (!allAttempts[subjectCode]) {
+          allAttempts[subjectCode] = {
+            subjectName: subjectName,
+            attempts: [],
+          };
         }
-      }
-    });
-    $("tr.selectbg").each((i, el) => {
-      const subjectCode = $(el).find("td").eq(0).text().trim().split(" ")[3];
-      // console.log(subjectCode);
-      const grade = $(el).find("td").eq(1).text().trim();
-      const year = parseInt($(el).find("td").eq(2).text().trim());
+        allAttempts[subjectCode].attempts.push({ grade, year });
 
-      if (grades.hasOwnProperty(grade)) {
-        if (
-          !latestAttempts[subjectCode] || // First occurrence
-          grades[grade] > grades[latestAttempts[subjectCode].grade] || // Higher grade found
-          (grades[grade] === grades[latestAttempts[subjectCode].grade] &&
-            latestAttempts[subjectCode].year < year) // Same grade, newer year
-        ) {
-          latestAttempts[subjectCode] = { grade, year };
+        // Existing latest attempt logic
+        if (!latestAttempts[subjectCode]) {
+          latestAttempts[subjectCode] = {
+            subjectName: subjectName,
+            grade,
+            year,
+          };
         }
       }
     });
+
+    $("tr.selectbg").each((i, el) => {
+      const repeatText = $(el).find("td").eq(0).text().trim();
+      const match = repeatText.match(/Repeat Attempt \[ (\w+) - (.+) \]/);
+      if (match) {
+        const subjectCode = match[1];
+        const subjectName = match[2];
+        const grade = $(el).find("td").eq(1).text().trim();
+        const year = parseInt($(el).find("td").eq(2).text().trim());
+
+        if (grades.hasOwnProperty(grade)) {
+          // Track all attempts with subject name
+          if (!allAttempts[subjectCode]) {
+            allAttempts[subjectCode] = {
+              subjectName: subjectName,
+              attempts: [],
+            };
+          }
+          allAttempts[subjectCode].attempts.push({ grade, year });
+
+          // Existing latest attempt logic
+          if (
+            !latestAttempts[subjectCode] || // First occurrence
+            grades[grade] > grades[latestAttempts[subjectCode].grade] || // Higher grade
+            (grades[grade] === grades[latestAttempts[subjectCode].grade] &&
+              latestAttempts[subjectCode].year < year) // Same grade, newer year
+          ) {
+            latestAttempts[subjectCode] = {
+              subjectName: subjectName,
+              grade,
+              year,
+            };
+          }
+        }
+      }
+    });
+
+    // After processing all attempts, identify repeated subjects
+    Object.entries(allAttempts).forEach(([subjectCode, subjectData]) => {
+      const attempts = subjectData.attempts;
+      const subjectName = subjectData.subjectName;
+
+      // Sort attempts by year (newest first)
+      attempts.sort((a, b) => b.year - a.year);
+
+      const latest = latestAttempts[subjectCode];
+      const hasLowGrade = attempts.some(
+        (attempt) => grades[attempt.grade] <= grades["C-"]
+      );
+
+      const latestIsC = latest.grade === "C";
+
+      if (hasLowGrade && !latestIsC) {
+        repeatedSubjects.push({
+          subjectCode,
+          subjectName, // Include subject name in the output
+          attempts: attempts.map((attempt) => ({
+            grade: attempt.grade,
+            year: attempt.year,
+            isLowGrade: grades[attempt.grade] <= grades["C-"],
+          })),
+          latestAttempt: latest,
+        });
+      }
+    });
+
+    // Example output with subject names:
+    console.log("Repeated subjects with names:", repeatedSubjects);
 
     for (const [subjectCode, { grade, year }] of Object.entries(
       latestAttempts
@@ -309,6 +376,7 @@ app.get("/results", async (req, res) => {
 
     const result = {
       data,
+      repeatedSubjects,
       gpa: gpa.toFixed(2),
       mathGpa: mathGpa.toFixed(2),
       cheGpa: chemGpa.toFixed(2),
@@ -537,10 +605,15 @@ app.get("/creditresults", async (req, res) => {
 });
 
 app.post("/calculateGPA", async (req, res) => {
-  const { stnum, subjects, grades: inputGrades } = req.body;
+  const { stnum, manualSubjects, repeatedSubjects } = req.body;
   const phpsessid = req.headers["authorization"];
 
+  console.log(`Student Number: ${stnum}`);
+  // console.log(`Manual Subjects: ${manualSubjects.subjects}`);
+  // console.log(`Repeated Subjects: ${repeatedSubjects.subjects}`);
+
   const url = `https://rank-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
+  // const url = `http://localhost:3001/creditresults?stnum=${stnum}&rlevel=4`;
 
   try {
     const response = await fetch(url, {
@@ -549,6 +622,7 @@ app.post("/calculateGPA", async (req, res) => {
         Cookie: `PHPSESSID=${phpsessid}`,
         Referer: "https://paravi.ruh.ac.lk/fosmis/",
         credentials: "include",
+        repeatedSubjects: JSON.stringify(repeatedSubjects),
       },
     });
     if (!response.ok) {
@@ -598,9 +672,9 @@ app.post("/calculateGPA", async (req, res) => {
     let csCredits = data.csCredits;
     let csGradePoints = data.csGradePoints;
 
-    for (let i = 0; i < subjects.length; i++) {
-      const subjectCode = subjects[i];
-      const grade = inputGrades[i];
+    for (let i = 0; i < manualSubjects.subjects.length; i++) {
+      const subjectCode = manualSubjects.subjects[i];
+      const grade = manualSubjects.grades[i];
 
       // Ignore non-credit subjects if you have a list for them
       if (nonCreditSubjects.includes(subjectCode)) continue;

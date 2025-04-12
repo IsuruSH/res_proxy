@@ -608,8 +608,6 @@ app.post("/calculateGPA", async (req, res) => {
 
   console.log(`Student Numberss: ${stnum}`);
 
-  console.log(repeatedSubjects);
-
   const url = `https://rank-proxy.onrender.com/creditresults?stnum=${stnum}&rlevel=4`;
   // const url = `http://localhost:3001/creditresults?stnum=${stnum}&rlevel=4`;
 
@@ -628,7 +626,7 @@ app.post("/calculateGPA", async (req, res) => {
       },
       body: JSON.stringify({ repeatedSubjects }),
     });
-    console.log(response);
+
     if (!response.ok) {
       return res.status(response.status).send(error.message);
     }

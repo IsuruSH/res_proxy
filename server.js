@@ -242,8 +242,8 @@ app.get("/results", async (req, res) => {
           // Existing latest attempt logic
           if (
             !latestAttempts[subjectCode] || // First occurrence
-            grades[grade] > grades[latestAttempts[subjectCode].grade] || // Higher grade
-            (grades[grade] === grades[latestAttempts[subjectCode].grade] &&
+            (grades[grade] > grades[latestAttempts[subjectCode].grade] && // Higher grade
+              grades[grade] === grades[latestAttempts[subjectCode].grade] &&
               latestAttempts[subjectCode].year < year) // Same grade, newer year
           ) {
             latestAttempts[subjectCode] = {

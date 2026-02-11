@@ -9,6 +9,8 @@ import {
   addManualSubjects,
   initDepartmentCredits,
   accumulateCredits,
+  computeGradeDistribution,
+  computeLevelGpas,
 } from "../utils/gpa.js";
 
 /**
@@ -34,11 +36,17 @@ export async function getResults(req, res) {
     }
 
     const gpas = calculateGpas(accum);
+    const gradeDistribution = computeGradeDistribution(latestAttempts);
+    const levelGpas = computeLevelGpas(latestAttempts);
 
     res.json({
       data: html,
       repeatedSubjects,
       ...gpas,
+      gradeDistribution,
+      levelGpas,
+      totalCredits: accum.total.credits,
+      totalGradePoints: accum.total.gradePoints,
     });
   } catch (err) {
     console.error("GET /results error:", err.message);

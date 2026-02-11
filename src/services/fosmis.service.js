@@ -36,6 +36,25 @@ export async function getSessionAndLogin(username, password) {
       body: `uname=${username}&upwd=${password}`,
     });
 
+    // Step 3 – Verify the login actually succeeded.
+    // FOSMIS always returns 302 regardless of correct/wrong password,
+    // so we re-fetch the index page and check if the login form is still
+    // present.  If it is, the credentials were invalid.
+    const verifyRes = await fetchWithCookies(
+      `${config.fosmisBaseUrl}/index.php`,
+      {
+        headers: { Cookie: `PHPSESSID=${sessionId}` },
+      }
+    );
+    const verifyHtml = await verifyRes.text();
+
+    // The login page contains an input named "uname". If we still see it
+    // after posting credentials, the login failed.
+    if (verifyHtml.includes('name="uname"') || verifyHtml.includes("login.php")) {
+      console.warn("[LOGIN] Credentials rejected by FOSMIS");
+      return null;
+    }
+
     return sessionId;
   } catch (err) {
     console.error("FOSMIS login error:", err.message);

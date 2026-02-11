@@ -12,6 +12,10 @@ export async function initSession(req, res) {
 
   const sessionId = await getSessionAndLogin(username, password);
 
+  if (!sessionId) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
   res.cookie("PHPSESSID", sessionId, {
     path: "/",
     httpOnly: false,

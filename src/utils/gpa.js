@@ -150,6 +150,53 @@ export function formatCreditTotals(accum) {
 }
 
 // ---------------------------------------------------------------------------
+// Analytics helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Count occurrences of each grade across latest attempts.
+ * Returns e.g. { "A+": 3, "B": 5, "C+": 2 }
+ */
+export function computeGradeDistribution(latestAttempts) {
+  const dist = {};
+  for (const { grade } of Object.values(latestAttempts)) {
+    dist[grade] = (dist[grade] || 0) + 1;
+  }
+  return dist;
+}
+
+/**
+ * Compute per-level GPAs by grouping subjects based on the level digit
+ * in position 3 of the subject code (e.g. MAT1142 → level 1).
+ * Returns { level1?: string, level2?: string, level3?: string }
+ */
+export function computeLevelGpas(latestAttempts) {
+  // Create an accumulator per level
+  const levelAccums = {
+    1: initDepartmentCredits(),
+    2: initDepartmentCredits(),
+    3: initDepartmentCredits(),
+  };
+
+  for (const [code, { grade }] of Object.entries(latestAttempts)) {
+    const levelChar = code.length > 3 ? code[3] : null;
+    const level = parseInt(levelChar, 10);
+    if (level >= 1 && level <= 3) {
+      accumulateCredits(levelAccums[level], code, grade);
+    }
+  }
+
+  const result = {};
+  for (const lvl of [1, 2, 3]) {
+    const { gradePoints, credits } = levelAccums[lvl].total;
+    if (credits > 0) {
+      result[`level${lvl}`] = (gradePoints / credits).toFixed(2);
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Full HTML → result pipelines
 // ---------------------------------------------------------------------------
 

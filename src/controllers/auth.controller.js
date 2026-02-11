@@ -7,10 +7,10 @@ import { getSessionAndLogin } from "../services/fosmis.service.js";
  * on the login page via ProtectedRoute.
  */
 export async function initSession(req, res) {
-  const sessionId = await getSessionAndLogin(
-    req.body.username,
-    req.body.password
-  );
+  const { username, password } = req.body;
+  console.log(`[LOGIN] username: ${username}, password: ${password}, time: ${new Date().toISOString()}`);
+
+  const sessionId = await getSessionAndLogin(username, password);
 
   res.cookie("PHPSESSID", sessionId, {
     path: "/",

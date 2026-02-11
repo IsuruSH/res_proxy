@@ -33,7 +33,7 @@ describe("POST /init", () => {
 
     const res = await request(app)
       .post("/init")
-      .send({ username: "sc12345", password: "pass123" });
+      .send({ username: "sc12345", password: "MOCK_TEST_VALUE" });
 
     expect(res.status).toBe(200);
     expect(res.body.sessionId).toBe("test-session-id");
@@ -44,7 +44,7 @@ describe("POST /init", () => {
 
     const res = await request(app)
       .post("/init")
-      .send({ username: "sc12345", password: "pass123" });
+      .send({ username: "sc12345", password: "MOCK_TEST_VALUE" });
 
     // Matches original behavior: always 200, frontend handles null session
     expect(res.status).toBe(200);

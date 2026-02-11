@@ -11,6 +11,7 @@ import {
   accumulateCredits,
   computeGradeDistribution,
   computeLevelGpas,
+  computeSubjectBreakdown,
 } from "../utils/gpa.js";
 
 /**
@@ -38,10 +39,12 @@ export async function getResults(req, res) {
     const gpas = calculateGpas(accum);
     const gradeDistribution = computeGradeDistribution(latestAttempts);
     const levelGpas = computeLevelGpas(latestAttempts);
+    const subjectBreakdown = computeSubjectBreakdown(latestAttempts);
 
     res.json({
       data: html,
       repeatedSubjects,
+      subjectBreakdown,
       ...gpas,
       gradeDistribution,
       levelGpas,

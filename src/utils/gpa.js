@@ -61,7 +61,9 @@ export function parseSubjectCode(fullText) {
  * Expected format: "Repeat Attempt [ CODE - Subject Name ]"
  */
 export function parseRepeatAttemptText(text) {
-  const match = text.match(/Repeat Attempt \[ (\w+) - (.+) \]/);
+  // Use \S+ instead of \w+ so Greek characters (δ, α, β) in subject codes
+  // like MAT112δ are matched correctly.
+  const match = text.match(/Repeat Attempt \[\s*(\S+)\s*-\s*(.+?)\s*\]/);
   return match ? { subjectCode: match[1], subjectName: match[2] } : null;
 }
 
@@ -196,6 +198,57 @@ export function computeLevelGpas(latestAttempts) {
   return result;
 }
 
+/**
+ * Extract year and semester from a subject code.
+ * After stripping the alphabetic prefix, the first digit = year,
+ * the second character = semester (1, 2, or a letter like B for bridge).
+ */
+function extractYearSemester(code) {
+  const digits = code.replace(/^[A-Za-z]+/, ""); // strip letter prefix
+  const year = parseInt(digits[0], 10) || 0;
+  const sem = digits[1] ?? "0"; // keep as string (could be 'B')
+  return { year, semester: sem };
+}
+
+/**
+ * Build a per-subject breakdown from latestAttempts.
+ * Returns an array sorted by year then semester then subject code,
+ * each entry containing:
+ *   subjectCode, subjectName, grade, credit, gradeScale, weightedPoints,
+ *   year, semester
+ * Excludes non-credit subjects (ENG, ICT etc.).
+ */
+export function computeSubjectBreakdown(latestAttempts) {
+  const rows = [];
+  for (const [code, { subjectName, grade }] of Object.entries(latestAttempts)) {
+    const upperCode = code.toUpperCase();
+    if (NON_CREDIT_SUBJECTS.includes(upperCode)) continue;
+
+    const credit = getCreditFromCode(code);
+    const gradeScale = GRADE_SCALE[grade] ?? 0;
+    const { year, semester } = extractYearSemester(code);
+    rows.push({
+      subjectCode: code,
+      subjectName,
+      grade,
+      credit,
+      gradeScale,
+      weightedPoints: credit * gradeScale,
+      year,
+      semester,
+    });
+  }
+  // Sort by year → semester → subject code
+  rows.sort((a, b) =>
+    a.year !== b.year
+      ? a.year - b.year
+      : a.semester !== b.semester
+        ? String(a.semester).localeCompare(String(b.semester))
+        : a.subjectCode.localeCompare(b.subjectCode)
+  );
+  return rows;
+}
+
 // ---------------------------------------------------------------------------
 // Full HTML → result pipelines
 // ---------------------------------------------------------------------------
@@ -264,17 +317,18 @@ export function parseResultsHtml(html) {
   });
 
   // --- identify repeated subjects ---
+  // A subject appears here only if its best grade is still below C.
+  // Once a student passes (C or above), the subject is removed from
+  // this list — even if it was repeated or had an MC attempt before.
   const repeatedSubjects = [];
   for (const [subjectCode, { attempts, subjectName }] of Object.entries(
     allAttempts
   )) {
     attempts.sort((a, b) => b.year - a.year);
     const latest = latestAttempts[subjectCode];
-    const hasLowGrade = attempts.some(
-      (a) => GRADE_SCALE[a.grade] <= GRADE_SCALE["C-"]
-    );
+    const needsRepeat = GRADE_SCALE[latest.grade] < GRADE_SCALE["C"];
 
-    if (hasLowGrade && latest.grade !== "C") {
+    if (needsRepeat) {
       repeatedSubjects.push({
         subjectCode,
         subjectName,

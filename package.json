@@ -11,11 +11,17 @@
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch --forceExit",
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage --forceExit"
   },
-  "keywords": ["gpa", "university", "results", "fosmis"],
+  "keywords": [
+    "gpa",
+    "university",
+    "results",
+    "fosmis"
+  ],
   "author": "Isuru Shanaka",
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

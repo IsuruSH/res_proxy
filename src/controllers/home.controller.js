@@ -66,16 +66,9 @@ export async function getHomeData(req, res) {
       }
     });
 
-    // --- Notices from marquee ---
-    let notices = [];
-    const marqueeText = $("marquee").text().trim();
-    if (marqueeText) {
-      // Split by common delimiters found in the ticker
-      notices = marqueeText
-        .split(/:::News:::|(?=\s{3,})/)
-        .map((n) => n.trim())
-        .filter((n) => n.length > 5);
-    }
+    // --- Notices ---
+    // Notices now come from the dedicated /notices endpoint (form_53_a.php).
+    // The old marquee text is stale and no longer used.
 
     // --- Student photo URL ---
     let photoUrl = "";
@@ -99,7 +92,6 @@ export async function getHomeData(req, res) {
     res.json({
       studentName,
       mentor,
-      notices,
       photoUrl,
     });
   } catch (err) {

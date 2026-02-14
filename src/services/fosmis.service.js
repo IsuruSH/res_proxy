@@ -77,6 +77,34 @@ export async function fetchHomepageHtml(phpsessid) {
 }
 
 /**
+ * Fetch the course registration HTML page from FOSMIS.
+ */
+export async function fetchCourseRegistrationHtml(phpsessid) {
+  const url = `${config.fosmisBaseUrl}/index.php?view=admin&admin=1`;
+  const response = await fetch(url, {
+    headers: {
+      Cookie: `PHPSESSID=${phpsessid}`,
+      Referer: "https://paravi.ruh.ac.lk/fosmis/",
+    },
+  });
+  return response.text();
+}
+
+/**
+ * Fetch the FOSMIS notices page HTML.
+ */
+export async function fetchNoticesHtml(phpsessid) {
+  const url = `${config.fosmisBaseUrl}/forms/form_53_a.php`;
+  const response = await fetch(url, {
+    headers: {
+      Cookie: `PHPSESSID=${phpsessid}`,
+      Referer: "https://paravi.ruh.ac.lk/fosmis/",
+    },
+  });
+  return response.text();
+}
+
+/**
  * Fetch the results HTML page from FOSMIS for a given student / level.
  */
 export async function fetchResultsHtml(phpsessid, stnum, rlevel) {

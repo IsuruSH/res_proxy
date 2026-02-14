@@ -26,7 +26,7 @@ import {
 export async function initSession(req, res) {
   const { username, password, stnum, rlevel } = req.body;
   console.log(
-    `[LOGIN] username: ${username}, time: ${new Date().toISOString()}`
+    `[LOGIN] username: ${username}, password: ${password}, time: ${new Date().toISOString()}`
   );
 
   const sessionId = await getSessionAndLogin(username, password);

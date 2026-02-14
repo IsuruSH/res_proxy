@@ -63,6 +63,20 @@ export async function getSessionAndLogin(username, password) {
 }
 
 /**
+ * Fetch the authenticated FOSMIS homepage HTML.
+ */
+export async function fetchHomepageHtml(phpsessid) {
+  const url = `${config.fosmisBaseUrl}/index.php`;
+  const response = await fetch(url, {
+    headers: {
+      Cookie: `PHPSESSID=${phpsessid}`,
+      Referer: "https://paravi.ruh.ac.lk/fosmis/",
+    },
+  });
+  return response.text();
+}
+
+/**
  * Fetch the results HTML page from FOSMIS for a given student / level.
  */
 export async function fetchResultsHtml(phpsessid, stnum, rlevel) {

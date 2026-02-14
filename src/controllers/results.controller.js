@@ -1,8 +1,12 @@
-import { fetchResultsHtml } from "../services/fosmis.service.js";
+import {
+  fetchResultsHtml,
+  fetchCourseRegistrationHtml,
+} from "../services/fosmis.service.js";
 import { guardStudent } from "../middleware/studentGuard.js";
 import {
   extractSession,
   parseResultsHtml,
+  parseCourseRegistrationHtml,
   calculateGpas,
   calculateCreditTotalsFromHtml,
   formatCreditTotals,
@@ -26,20 +30,28 @@ export async function getResults(req, res) {
   if (strippedStnum === null) return; // response already sent
 
   try {
-    const html = await fetchResultsHtml(phpsessid, strippedStnum, rlevel);
+    // Fetch results and course registration in parallel
+    const [html, courseRegHtml] = await Promise.all([
+      fetchResultsHtml(phpsessid, strippedStnum, rlevel),
+      fetchCourseRegistrationHtml(phpsessid),
+    ]);
+
+    // Parse course registration to get Non Degree subjects and confirmed credits
+    const courseReg = parseCourseRegistrationHtml(courseRegHtml);
+    const { nonDegreeSet, totalConfirmedCredits } = courseReg;
 
     const { latestAttempts, repeatedSubjects } = parseResultsHtml(html);
 
-    // Build accumulators from latest attempts
+    // Build accumulators from latest attempts, excluding Non Degree subjects
     const accum = initDepartmentCredits();
     for (const [code, { grade }] of Object.entries(latestAttempts)) {
-      accumulateCredits(accum, code, grade);
+      accumulateCredits(accum, code, grade, nonDegreeSet);
     }
 
     const gpas = calculateGpas(accum);
-    const gradeDistribution = computeGradeDistribution(latestAttempts);
-    const levelGpas = computeLevelGpas(latestAttempts);
-    const subjectBreakdown = computeSubjectBreakdown(latestAttempts);
+    const gradeDistribution = computeGradeDistribution(latestAttempts, nonDegreeSet);
+    const levelGpas = computeLevelGpas(latestAttempts, nonDegreeSet);
+    const subjectBreakdown = computeSubjectBreakdown(latestAttempts, nonDegreeSet);
 
     res.json({
       data: html,
@@ -50,6 +62,8 @@ export async function getResults(req, res) {
       levelGpas,
       totalCredits: accum.total.credits,
       totalGradePoints: accum.total.gradePoints,
+      confirmedCredits: totalConfirmedCredits,
+      nonDegreeSubjects: [...nonDegreeSet],
     });
   } catch (err) {
     console.error("GET /results error:", err.message);
@@ -89,8 +103,14 @@ export async function calculateGPA(req, res) {
   const strippedStnum = stnum?.startsWith("0") ? stnum.slice(1) : stnum;
 
   try {
-    // FIX: was calling external rank-proxy.onrender.com — now uses local logic
-    const html = await fetchResultsHtml(phpsessid, strippedStnum, "4");
+    // Fetch results and course registration in parallel
+    const [html, courseRegHtml] = await Promise.all([
+      fetchResultsHtml(phpsessid, strippedStnum, "4"),
+      fetchCourseRegistrationHtml(phpsessid),
+    ]);
+
+    // Get Non Degree subject set
+    const { nonDegreeSet } = parseCourseRegistrationHtml(courseRegHtml);
 
     // Build grade overrides from repeated subjects
     const gradeOverrides = {};
@@ -103,8 +123,8 @@ export async function calculateGPA(req, res) {
       }
     }
 
-    // Get base credit totals with overrides applied
-    const accum = calculateCreditTotalsFromHtml(html, gradeOverrides);
+    // Get base credit totals with overrides applied, excluding Non Degree
+    const accum = calculateCreditTotalsFromHtml(html, gradeOverrides, nonDegreeSet);
 
     // Add manual subjects on top
     if (manualSubjects?.subjects && manualSubjects?.grades) {
@@ -114,7 +134,6 @@ export async function calculateGPA(req, res) {
     res.json(calculateGpas(accum));
   } catch (err) {
     console.error("POST /calculateGPA error:", err.message);
-    // FIX: was referencing undefined `error` variable — now uses err.message
     res.status(500).json({ message: err.message || "Error calculating GPA" });
   }
 }

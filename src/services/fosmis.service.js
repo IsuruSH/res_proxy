@@ -2,29 +2,46 @@ import fetch from "node-fetch";
 import tough from "tough-cookie";
 import fetchCookie from "fetch-cookie";
 import config from "../config/index.js";
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+} from "./cache.service.js";
 
-const cookieJar = new tough.CookieJar();
-const fetchWithCookies = fetchCookie(fetch, cookieJar);
+// ---------------------------------------------------------------------------
+// Per-request cookie jar factory (avoids cross-session contamination)
+// ---------------------------------------------------------------------------
+
+function makeFetchWithCookies() {
+  const jar = new tough.CookieJar();
+  return { jar, fetch: fetchCookie(fetch, jar) };
+}
+
+// Shared headers sent on every FOSMIS fetch
+const FOSMIS_HEADERS = {
+  Referer: "https://paravi.ruh.ac.lk/fosmis/",
+};
+
+// ---------------------------------------------------------------------------
+// Login — not cached (unique per user)
+// ---------------------------------------------------------------------------
 
 /**
  * Authenticate against FOSMIS and return the PHP session ID.
  * Returns null on failure.
  */
 export async function getSessionAndLogin(username, password) {
-  try {
-    // Clear any stale cookies
-    await cookieJar.removeAllCookies();
+  const { jar, fetch: fetchWithCookies } = makeFetchWithCookies();
 
+  try {
     // Step 1 – Hit index.php to obtain a session cookie
     await fetchWithCookies(`${config.fosmisBaseUrl}/index.php`);
 
-    const cookies = await cookieJar.getCookies(
-      `${config.fosmisBaseUrl}/index.php`
-    );
+    const cookies = await jar.getCookies(`${config.fosmisBaseUrl}/index.php`);
     const sessionCookie = cookies.find((c) => c.key === "PHPSESSID");
     const sessionId = sessionCookie ? sessionCookie.value : null;
 
-    // Step 2 – POST credentials to login.php (cookie jar handles PHPSESSID)
+    // Step 2 – POST credentials to login.php
     await fetchWithCookies(`${config.fosmisBaseUrl}/login.php`, {
       method: "POST",
       headers: {
@@ -37,23 +54,22 @@ export async function getSessionAndLogin(username, password) {
     });
 
     // Step 3 – Verify the login actually succeeded.
-    // FOSMIS always returns 302 regardless of correct/wrong password,
-    // so we re-fetch the index page and check if the login form is still
-    // present.  If it is, the credentials were invalid.
     const verifyRes = await fetchWithCookies(
       `${config.fosmisBaseUrl}/index.php`,
-      {
-        headers: { Cookie: `PHPSESSID=${sessionId}` },
-      }
+      { headers: { Cookie: `PHPSESSID=${sessionId}` } }
     );
     const verifyHtml = await verifyRes.text();
 
-    // The login page contains an input named "uname". If we still see it
-    // after posting credentials, the login failed.
-    if (verifyHtml.includes('name="uname"') || verifyHtml.includes("login.php")) {
+    if (
+      verifyHtml.includes('name="uname"') ||
+      verifyHtml.includes("login.php")
+    ) {
       console.warn("[LOGIN] Credentials rejected by FOSMIS");
       return null;
     }
+
+    // Cache the homepage HTML we already have (saves a round-trip later)
+    cacheSet(cacheKey(sessionId, "homepage"), verifyHtml);
 
     return sessionId;
   } catch (err) {
@@ -62,60 +78,67 @@ export async function getSessionAndLogin(username, password) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cached FOSMIS fetchers
+// ---------------------------------------------------------------------------
+
+/** Generic cached fetch helper. */
+async function cachedFosmisHtml(phpsessid, url, key) {
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
+  const response = await fetch(url, {
+    headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
+  });
+  const html = await response.text();
+  cacheSet(key, html);
+  return html;
+}
+
 /**
  * Fetch the authenticated FOSMIS homepage HTML.
  */
 export async function fetchHomepageHtml(phpsessid) {
-  const url = `${config.fosmisBaseUrl}/index.php`;
-  const response = await fetch(url, {
-    headers: {
-      Cookie: `PHPSESSID=${phpsessid}`,
-      Referer: "https://paravi.ruh.ac.lk/fosmis/",
-    },
-  });
-  return response.text();
+  const key = cacheKey(phpsessid, "homepage");
+  return cachedFosmisHtml(
+    phpsessid,
+    `${config.fosmisBaseUrl}/index.php`,
+    key
+  );
 }
 
 /**
  * Fetch the course registration HTML page from FOSMIS.
  */
 export async function fetchCourseRegistrationHtml(phpsessid) {
-  const url = `${config.fosmisBaseUrl}/index.php?view=admin&admin=1`;
-  const response = await fetch(url, {
-    headers: {
-      Cookie: `PHPSESSID=${phpsessid}`,
-      Referer: "https://paravi.ruh.ac.lk/fosmis/",
-    },
-  });
-  return response.text();
+  const key = cacheKey(phpsessid, "courseReg");
+  return cachedFosmisHtml(
+    phpsessid,
+    `${config.fosmisBaseUrl}/index.php?view=admin&admin=1`,
+    key
+  );
 }
 
 /**
  * Fetch the FOSMIS notices page HTML.
  */
 export async function fetchNoticesHtml(phpsessid) {
-  const url = `${config.fosmisBaseUrl}/forms/form_53_a.php`;
-  const response = await fetch(url, {
-    headers: {
-      Cookie: `PHPSESSID=${phpsessid}`,
-      Referer: "https://paravi.ruh.ac.lk/fosmis/",
-    },
-  });
-  return response.text();
+  const key = cacheKey(phpsessid, "notices");
+  return cachedFosmisHtml(
+    phpsessid,
+    `${config.fosmisBaseUrl}/forms/form_53_a.php`,
+    key
+  );
 }
 
 /**
  * Fetch the results HTML page from FOSMIS for a given student / level.
  */
 export async function fetchResultsHtml(phpsessid, stnum, rlevel) {
-  const url = `${config.fosmisBaseUrl}/Ajax/result_filt.php?task=lvlfilt&stnum=${stnum}&rlevel=${rlevel}`;
-
-  const response = await fetch(url, {
-    headers: {
-      Cookie: `PHPSESSID=${phpsessid}`,
-      Referer: "https://paravi.ruh.ac.lk/fosmis/",
-    },
-  });
-
-  return response.text();
+  const key = cacheKey(phpsessid, "results", stnum, rlevel);
+  return cachedFosmisHtml(
+    phpsessid,
+    `${config.fosmisBaseUrl}/Ajax/result_filt.php?task=lvlfilt&stnum=${stnum}&rlevel=${rlevel}`,
+    key
+  );
 }

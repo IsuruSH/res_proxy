@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import corsMiddleware from "./middleware/cors.js";
 import errorHandler from "./middleware/errorHandler.js";
@@ -11,6 +12,8 @@ import routes from "./routes/index.js";
 const app = express();
 
 // --- Core middleware ---
+// gzip/deflate — typically 70-85 % smaller JSON payloads over the wire
+app.use(compression({ threshold: 512 }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(corsMiddleware);

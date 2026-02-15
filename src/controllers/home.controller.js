@@ -48,7 +48,7 @@ export async function getHomeData(req, res) {
             const cells = $(tr).find("td");
             if (cells.length >= 2) {
               const label = $(cells[0]).text().trim().toLowerCase();
-              const value = $(cells[1]).text().replace(/^:\s*/, "").trim();
+              const value = $(cells[1]).text().replace(/^:\s*/, "").replace(/\s+/g, " ").trim();
               if (label.includes("name")) mentor.name = value;
               else if (label.includes("designation"))
                 mentor.designation = value;

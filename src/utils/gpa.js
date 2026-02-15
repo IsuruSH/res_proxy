@@ -225,10 +225,10 @@ export function computeSubjectBreakdown(latestAttempts, nonDegreeSet) {
   const rows = [];
   for (const [code, { subjectName, grade }] of Object.entries(latestAttempts)) {
     const upperCode = code.toUpperCase();
-    if (NON_CREDIT_SUBJECTS.includes(upperCode)) continue;
     if (nonDegreeSet && nonDegreeSet.has(upperCode)) continue;
 
-    const credit = getCreditFromCode(code);
+    const isNonCredit = NON_CREDIT_SUBJECTS.includes(upperCode);
+    const credit = isNonCredit ? 0 : getCreditFromCode(code);
     const gradeScale = GRADE_SCALE[grade] ?? 0;
     const { year, semester } = extractYearSemester(code);
     rows.push({

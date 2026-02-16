@@ -22,6 +22,63 @@ const FOSMIS_HEADERS = {
   Referer: "https://paravi.ruh.ac.lk/fosmis/",
 };
 
+const REQUEST_TIMEOUT_MS = 15000;
+const MAX_RETRIES = 2;
+
+/**
+ * Robust fetch wrapper for FOSMIS.
+ * Implements timeouts, duration logging, and retries for transient network errors.
+ */
+async function robustFosmisFetch(url, options = {}, fetchFn = fetch) {
+  let attempt = 0;
+  const start = Date.now();
+
+  while (attempt <= MAX_RETRIES) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      attempt++;
+      const response = await fetchFn(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      const duration = Date.now() - start;
+      if (attempt > 1) {
+        console.log(`[FOSMIS] ${url} succeeded on attempt ${attempt} (${duration}ms)`);
+      } else if (duration > 2000) {
+        console.warn(`[FOSMIS] Slow response from ${url}: ${duration}ms`);
+      }
+
+      return response;
+    } catch (err) {
+      const duration = Date.now() - start;
+      const isTransient =
+        err.name === "AbortError" ||
+        err.code === "ECONNRESET" ||
+        err.code === "ETIMEDOUT" ||
+        err.message.includes("socket hang up");
+
+      if (isTransient && attempt <= MAX_RETRIES) {
+        console.warn(
+          `[FOSMIS] Attempt ${attempt} failed for ${url} (${err.message}). Retrying...`
+        );
+        // Small backoff
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+
+      console.error(
+        `[FOSMIS] Request failed after ${attempt} attempts: ${url} (${err.message})`
+      );
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Login — not cached (unique per user)
 // ---------------------------------------------------------------------------
@@ -35,14 +92,14 @@ export async function getSessionAndLogin(username, password) {
 
   try {
     // Step 1 – Hit index.php to obtain a session cookie
-    await fetchWithCookies(`${config.fosmisBaseUrl}/index.php`);
+    await robustFosmisFetch(`${config.fosmisBaseUrl}/index.php`, {}, fetchWithCookies);
 
     const cookies = await jar.getCookies(`${config.fosmisBaseUrl}/index.php`);
     const sessionCookie = cookies.find((c) => c.key === "PHPSESSID");
     const sessionId = sessionCookie ? sessionCookie.value : null;
 
     // Step 2 – POST credentials to login.php
-    await fetchWithCookies(`${config.fosmisBaseUrl}/login.php`, {
+    await robustFosmisFetch(`${config.fosmisBaseUrl}/login.php`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -51,12 +108,13 @@ export async function getSessionAndLogin(username, password) {
       },
       Cookie: `PHPSESSID=${sessionId}`,
       body: `uname=${username}&upwd=${password}`,
-    });
+    }, fetchWithCookies);
 
     // Step 3 – Verify the login actually succeeded.
-    const verifyRes = await fetchWithCookies(
+    const verifyRes = await robustFosmisFetch(
       `${config.fosmisBaseUrl}/index.php`,
-      { headers: { Cookie: `PHPSESSID=${sessionId}` } }
+      { headers: { Cookie: `PHPSESSID=${sessionId}` } },
+      fetchWithCookies
     );
     const verifyHtml = await verifyRes.text();
 
@@ -87,7 +145,7 @@ async function cachedFosmisHtml(phpsessid, url, key) {
   const cached = cacheGet(key);
   if (cached) return cached;
 
-  const response = await fetch(url, {
+  const response = await robustFosmisFetch(url, {
     headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
   });
   const html = await response.text();
@@ -132,7 +190,7 @@ export async function fetchNoticesHtml(phpsessid) {
  * Fetch the FOSMIS notices page as a readable stream.
  */
 export async function fetchNoticesStream(phpsessid) {
-  const response = await fetch(`${config.fosmisBaseUrl}/forms/form_53_a.php`, {
+  const response = await robustFosmisFetch(`${config.fosmisBaseUrl}/forms/form_53_a.php`, {
     headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
   });
   return response.body;

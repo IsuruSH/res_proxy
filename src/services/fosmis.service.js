@@ -119,9 +119,6 @@ export async function fetchCourseRegistrationHtml(phpsessid) {
   );
 }
 
-/**
- * Fetch the FOSMIS notices page HTML.
- */
 export async function fetchNoticesHtml(phpsessid) {
   const key = cacheKey(phpsessid, "notices");
   return cachedFosmisHtml(
@@ -129,6 +126,16 @@ export async function fetchNoticesHtml(phpsessid) {
     `${config.fosmisBaseUrl}/forms/form_53_a.php`,
     key
   );
+}
+
+/**
+ * Fetch the FOSMIS notices page as a readable stream.
+ */
+export async function fetchNoticesStream(phpsessid) {
+  const response = await fetch(`${config.fosmisBaseUrl}/forms/form_53_a.php`, {
+    headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
+  });
+  return response.body;
 }
 
 /**

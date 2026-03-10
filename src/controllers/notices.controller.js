@@ -36,10 +36,16 @@ export async function getNoticesStream(req, res) {
     return res.status(401).json({ error: "No session" });
   }
 
-  // Set headers for SSE
+  // SSE headers — explicit CORS required since flushHeaders() bypasses the cors middleware
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   try {

@@ -23,19 +23,20 @@ const FOSMIS_HEADERS = {
 };
 
 const REQUEST_TIMEOUT_MS = 15000;
+const NOTICES_TIMEOUT_MS = 45000;
 const MAX_RETRIES = 2;
 
 /**
  * Robust fetch wrapper for FOSMIS.
  * Implements timeouts, duration logging, and retries for transient network errors.
  */
-async function robustFosmisFetch(url, options = {}, fetchFn = fetch) {
+async function robustFosmisFetch(url, options = {}, fetchFn = fetch, timeoutMs = REQUEST_TIMEOUT_MS) {
   let attempt = 0;
   const start = Date.now();
 
   while (attempt <= MAX_RETRIES) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       attempt++;
@@ -141,13 +142,16 @@ export async function getSessionAndLogin(username, password) {
 // ---------------------------------------------------------------------------
 
 /** Generic cached fetch helper. */
-async function cachedFosmisHtml(phpsessid, url, key) {
+async function cachedFosmisHtml(phpsessid, url, key, timeoutMs) {
   const cached = cacheGet(key);
   if (cached) return cached;
 
-  const response = await robustFosmisFetch(url, {
-    headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
-  });
+  const response = await robustFosmisFetch(
+    url,
+    { headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS } },
+    fetch,
+    timeoutMs
+  );
   const html = await response.text();
   cacheSet(key, html);
   return html;
@@ -182,7 +186,8 @@ export async function fetchNoticesHtml(phpsessid) {
   return cachedFosmisHtml(
     phpsessid,
     `${config.fosmisBaseUrl}/forms/form_53_a.php`,
-    key
+    key,
+    NOTICES_TIMEOUT_MS
   );
 }
 
@@ -190,9 +195,12 @@ export async function fetchNoticesHtml(phpsessid) {
  * Fetch the FOSMIS notices page as a readable stream.
  */
 export async function fetchNoticesStream(phpsessid) {
-  const response = await robustFosmisFetch(`${config.fosmisBaseUrl}/forms/form_53_a.php`, {
-    headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS },
-  });
+  const response = await robustFosmisFetch(
+    `${config.fosmisBaseUrl}/forms/form_53_a.php`,
+    { headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS } },
+    fetch,
+    NOTICES_TIMEOUT_MS
+  );
   return response.body;
 }
 

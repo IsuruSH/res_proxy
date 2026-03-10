@@ -19,6 +19,7 @@ export const GRADE_SCALE = {
   "E-": 0.0,
   F: 0.0,
   MC: 0.0,
+  Wh: 0.0,
 };
 
 /**

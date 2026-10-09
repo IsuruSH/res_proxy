@@ -23,7 +23,6 @@ const FOSMIS_HEADERS = {
 };
 
 const REQUEST_TIMEOUT_MS = 15000;
-const NOTICES_TIMEOUT_MS = 45000;
 const MAX_RETRIES = 2;
 
 // Login gets a longer per-attempt budget but fewer attempts. FOSMIS has been
@@ -230,23 +229,6 @@ export async function fetchCourseRegistrationHtml(phpsessid) {
     `${config.fosmisBaseUrl}/index.php?view=admin&admin=1`,
     key
   );
-}
-
-/**
- * Fetch the FOSMIS notices page HTML.
- *
- * Deliberately NOT session-cached: notices are identical for every student, so
- * notices.service.js holds a single global copy of the *parsed* result instead.
- * Caching raw HTML per session meant every student pulled all 6000+ rows again.
- */
-export async function fetchNoticesHtmlRaw(phpsessid) {
-  const response = await robustFosmisFetch(
-    `${config.fosmisBaseUrl}/forms/form_53_a.php`,
-    { headers: { Cookie: `PHPSESSID=${phpsessid}`, ...FOSMIS_HEADERS } },
-    fetch,
-    NOTICES_TIMEOUT_MS
-  );
-  return response.text();
 }
 
 /**

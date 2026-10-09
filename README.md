@@ -24,12 +24,11 @@ res_proxy/
 │   ├── controllers/          # Request handling: params in, JSON out
 │   ├── services/
 │   │   ├── fosmis.service.js  # All outbound FOSMIS calls (login, fetch, retry, timeout)
-│   │   ├── cache.service.js   # Per-session in-memory TTL cache
-│   │   └── notices.service.js # Global notices store (shared by all students)
+│   │   └── cache.service.js   # Per-session in-memory TTL cache
 │   ├── middleware/           # CORS, error handler, student-number guard
 │   └── utils/
 │       ├── gpa.js            # Results HTML parsing and GPA/credit maths
-│       └── notices.js        # Notice board HTML parsing
+│       └── courseReg.js      # Course registration HTML parsing
 ├── tests/
 │   ├── unit/gpa.test.js          # Parsing + GPA utilities
 │   └── integration/routes.test.js # Route behaviour with FOSMIS mocked
@@ -104,9 +103,6 @@ Each login gets its own `tough-cookie` jar so concurrent logins cannot contamina
 | `POST` | `/calculateGPA` | yes | GPA with manual subjects and repeated-grade overrides. |
 | `GET` | `/home-data` | yes | Student name, mentor details, profile photo URL. |
 | `GET` | `/course-registration` | yes | Registered courses, confirmed credits, Non-Degree subjects. |
-| `GET` | `/notices` | yes | Notice board as JSON. |
-| `GET` | `/notices/stream` | yes | Notice board as Server-Sent Events. |
-| `GET` | `/notices/proxy?url=&session=` | — | Re-serve a notice file past CORS. |
 
 `rlevel` is `1`, `2`, `3`, or `4` for all levels.
 
@@ -134,25 +130,6 @@ If that pre-fetch fails it is swallowed and logged — `sessionId` is still retu
 
 GPA values are strings fixed to 2 decimals, or the string `"NaN"` when a department has no credits.
 
-### The three notices endpoints
-
-**Notices are identical for every student**, and that fact drives the whole design. The FOSMIS notices page (`form_53_a.php`) carries 6000+ rows, is ~1 MB, and can take 45 seconds to arrive — so fetching and parsing it per student was both the slowest thing the server did and its main source of event-loop stalls.
-
-[notices.service.js](src/services/notices.service.js) therefore holds **one global copy of the parsed result**, not one per session:
-
-- **One entry, 15-minute TTL.** Notices change a few times a week.
-- **In-flight deduplication.** Ten students opening the dashboard on a cold cache share one upstream fetch instead of starting ten.
-- **Stale-on-error.** If FOSMIS is unreachable, the last known notices are served rather than failing the dashboard.
-
-`GET /notices` returns the board as JSON. `GET /notices/stream` emits the same notices one at a time over SSE — but from memory, so it is normally instant; only the first request after the TTL expires reaches FOSMIS. Previous notices are capped at 50.
-
-Two things in this area must not regress:
-
-1. **Parse once per refresh, never per chunk.** An earlier version called `cheerio.load(fullHtml)` on every network chunk, re-parsing the whole accumulating document. That is O(n²) synchronous CPU — measured at **4.5s of blocking versus 125ms for a single parse**, a 36× waste. Because Node is single-threaded, it starved every other request on the server: timers stopped firing on schedule, so unrelated requests hit their 15s abort deadlines and logins failed with `The operation was aborted`. If you reintroduce incremental parsing, it must not re-parse consumed input.
-2. **The SSE handler sets its own `Access-Control-Allow-Origin`.** Deliberate — `res.flushHeaders()` sends headers before the `cors` middleware would otherwise apply. It also tracks `req.on("close")` so a user navigating away stops the write loop.
-
-`GET /notices/proxy` re-serves an individual notice file through this server for files the browser can't embed cross-origin. It only accepts URLs beginning `https://paravi.ruh.ac.lk/fosmis`, and injects a `<base>` tag into HTML responses so their relative asset paths resolve.
-
 ## Domain Rules
 
 These are the non-obvious rules the parsing and GPA maths depend on. They live in [src/constants/index.js](src/constants/index.js) and [src/utils/gpa.js](src/utils/gpa.js).
@@ -175,17 +152,22 @@ The Latin `a`, `b`, `d` are accepted because users type them by hand when enteri
 
 **A subject is "repeated"** only when its *best* grade across all attempts is still below C. Once a student passes, the subject drops off the list even if it was failed or carried an MC before.
 
-**Departments** are matched by code prefix: `AMT`/`IMT`/`MAT` → math, `CHE` → chem, `PHY` → phy, `ZOO` → zoo, `BOT` → bot, `COM`/`CSC` → cs.
+**The course registration page has two shapes.** When a registration window is open, FOSMIS adds an "Optional And Non Degree Course Units" offer table and changes the semester-credit wording from `"registered for 7.50(Confirm) Credits"` to `"Have Register for 20.00 Credits for This Semester"`. [courseReg.js](src/utils/courseReg.js) handles both, and two traps make it fiddly:
+
+- **The tables are nested.** One outer table wraps the rest, so `$(table).find("tr")` walks into the inner tables and the wrapper looks like it has a header row with every inner header concatenated. Always read a table's *own* rows. Getting this wrong previously pushed a row whose "code" was the entire page text into the UI.
+- **Column counts differ per table** (4, 5 and 6 columns — "Course category" is not always present). Columns are therefore resolved by header label, and each table is identified by the label unique to it: `Prerequisites` → offers, `Official Confirmation` → all courses, `Conf. Status` → current semester. Never index cells positionally here.
+
+`nonDegreeSet` is derived **only** from the all-courses table. The offer table lists units a student *could* take as Non Degree; treating those as registered silently drops them from the GPA.
+
+**Departments** are matched by code prefix: `AMT`/`IMT`/`MAT`/`MSP` → math, `CHE` → chem, `PHY` → phy, `ZOO` → zoo, `BOT` → bot, `COM`/`CSC` → cs.
 
 `DECEASED_STNUM` in the constants file causes `/results` to return a memorial message instead of results; the client renders it in place of the dashboard.
 
 ## Caching and Resilience
 
-There are two independent caches, and the distinction matters: [cache.service.js](src/services/cache.service.js) holds **per-student** data keyed by session, while [notices.service.js](src/services/notices.service.js) holds the **one shared** notice board. Student results must never go in the global store.
-
 **Session cache** — [cache.service.js](src/services/cache.service.js) is a `Map` with a 5-minute TTL, keyed `sessionId:endpoint:...` so sessions never collide. Long enough that navigating between pages is instant, short enough that a manual refresh picks up new results. A 60-second background sweep evicts abandoned entries; the interval is `unref`'d so it can't hold the process open. `POST /logout` deletes every key with the session's prefix.
 
-**Outbound requests** — [`robustFosmisFetch`](src/services/fosmis.service.js) wraps every FOSMIS call with a timeout (15s default, 45s for notices), up to 2 retries with linear backoff on transient failures (`AbortError`, `ECONNRESET`, `ETIMEDOUT`, socket hang-up), and duration logging that warns above 2 seconds. Non-transient errors are not retried.
+**Outbound requests** — [`robustFosmisFetch`](src/services/fosmis.service.js) wraps every FOSMIS call with a timeout (15s default, 25s for login), up to 2 retries with linear backoff on transient failures (`AbortError`, `ECONNRESET`, `ETIMEDOUT`, socket hang-up), and duration logging that warns above 2 seconds. Non-transient errors are not retried.
 
 **Compression** — gzip on responses over 512 bytes, which matters because `/results` ships the raw FOSMIS HTML.
 
@@ -202,7 +184,7 @@ The `--experimental-vm-modules` flag in the test scripts is required — this pr
 - **`tests/unit/gpa.test.js`** covers [utils/gpa.js](src/utils/gpa.js): credit and department lookup, session extraction, subject-code and repeat-attempt parsing, credit accumulation, GPA formatting, and the full HTML → results pipeline including grade overrides.
 - **`tests/integration/routes.test.js`** drives the routes through supertest with FOSMIS mocked out.
 
-Note the gap: `/home-data`, `/course-registration`, and the three notices endpoints have no test coverage.
+Note the gap: `/home-data` and `/course-registration` have no test coverage.
 
 When adding an export to `fosmis.service.js`, add it to the mock factory at the top of `tests/integration/routes.test.js` too — that factory must cover every name any controller imports, or the whole suite fails to load rather than failing one test.
 

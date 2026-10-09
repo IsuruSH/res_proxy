@@ -5,7 +5,7 @@ import { extractSession } from "../utils/gpa.js";
 /**
  * GET /home-data
  * Scrape the authenticated FOSMIS homepage and return structured JSON
- * with student info, mentor details, and notices.
+ * with student info and mentor details.
  */
 export async function getHomeData(req, res) {
   const phpsessid = extractSession(req.headers["authorization"]);
@@ -66,9 +66,6 @@ export async function getHomeData(req, res) {
       }
     });
 
-    // --- Notices ---
-    // Notices now come from the dedicated /notices endpoint (form_53_a.php).
-    // The old marquee text is stale and no longer used.
 
     // --- Student photo URL ---
     let photoUrl = "";

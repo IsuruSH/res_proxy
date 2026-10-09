@@ -5,8 +5,7 @@ import {
 import { guardStudent } from "../middleware/studentGuard.js";
 import {
   extractSession,
-  parseResultsHtml,
-  parseCourseRegistrationHtml,
+  parseResultsHtml,
   calculateGpas,
   calculateCreditTotalsFromHtml,
   formatCreditTotals,
@@ -17,6 +16,7 @@ import {
   computeLevelGpas,
   computeSubjectBreakdown,
 } from "../utils/gpa.js";
+import { parseCourseRegistrationHtml } from "../utils/courseReg.js";
 
 /**
  * GET /results

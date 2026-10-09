@@ -2,6 +2,7 @@ import {
   getSessionAndLogin,
   fetchResultsHtml,
   fetchCourseRegistrationHtml,
+  FosmisUnreachableError,
 } from "../services/fosmis.service.js";
 import { cacheDelPrefix } from "../services/cache.service.js";
 import {
@@ -29,7 +30,20 @@ export async function initSession(req, res) {
     `[LOGIN] username: ${username}, password: ${password}, time: ${new Date().toISOString()}`
   );
 
-  const sessionId = await getSessionAndLogin(username, password);
+  // A FOSMIS timeout and a wrong password are different failures and must not
+  // look the same to the user: 401 means "your password is wrong", 503 means
+  // "FOSMIS didn't answer, try again".
+  let sessionId;
+  try {
+    sessionId = await getSessionAndLogin(username, password);
+  } catch (err) {
+    if (err instanceof FosmisUnreachableError) {
+      return res.status(503).json({
+        error: "FOSMIS is not responding right now. Please try again in a moment.",
+      });
+    }
+    throw err;
+  }
 
   if (!sessionId) {
     return res.status(401).json({ error: "Invalid credentials" });

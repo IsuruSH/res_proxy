@@ -1,13 +1,13 @@
 import { Router } from "express";
 import {
-  getNotices,
+  getNoticesJson,
   getNoticesStream,
   proxyNoticeFile,
 } from "../controllers/notices.controller.js";
 
 const router = Router();
 
-router.get("/notices", getNotices);
+router.get("/notices", getNoticesJson);
 router.get("/notices/stream", getNoticesStream);
 router.get("/notices/proxy", proxyNoticeFile);
 

@@ -1,14 +1,12 @@
 import fetch from "node-fetch";
-import * as cheerio from "cheerio";
-import { fetchNoticesHtml, fetchNoticesStream } from "../services/fosmis.service.js";
-import { extractSession, parseNoticesHtml } from "../utils/gpa.js";
-import config from "../config/index.js";
+import { getNotices } from "../services/notices.service.js";
+import { extractSession } from "../utils/gpa.js";
 
 /**
  * GET /notices
- * Scrape the FOSMIS notices page and return structured JSON.
+ * Return the notice board as JSON, from the shared global cache.
  */
-export async function getNotices(req, res) {
+export async function getNoticesJson(req, res) {
   const phpsessid = extractSession(req.headers["authorization"]);
 
   if (!phpsessid) {
@@ -16,18 +14,20 @@ export async function getNotices(req, res) {
   }
 
   try {
-    const html = await fetchNoticesHtml(phpsessid);
-    const data = parseNoticesHtml(html, config.fosmisBaseUrl);
-    res.json(data);
+    res.json(await getNotices(phpsessid));
   } catch (err) {
     console.error("GET /notices error:", err.message);
-    res.status(500).json({ message: "Error fetching notices" });
+    res.status(502).json({ message: "Error fetching notices" });
   }
 }
 
 /**
  * GET /notices/stream
- * Stream notices to the client using Server-Sent Events (SSE).
+ * Stream notices to the client one at a time over Server-Sent Events.
+ *
+ * The notices themselves come from the shared in-memory store, so this is
+ * normally instant — only the first request after the TTL expires reaches
+ * FOSMIS, and concurrent requests share that one fetch.
  */
 export async function getNoticesStream(req, res) {
   const phpsessid = extractSession(req.headers["authorization"]);
@@ -36,7 +36,8 @@ export async function getNoticesStream(req, res) {
     return res.status(401).json({ error: "No session" });
   }
 
-  // SSE headers — explicit CORS required since flushHeaders() bypasses the cors middleware
+  // SSE headers — explicit CORS required because flushHeaders() sends headers
+  // before the cors middleware would otherwise apply them.
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -48,119 +49,39 @@ export async function getNoticesStream(req, res) {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
+  // Stop writing if the user navigates away mid-stream.
+  let aborted = false;
+  req.on("close", () => {
+    aborted = true;
+  });
+
   try {
-    const stream = await fetchNoticesStream(phpsessid);
-    const downloadsBase = config.fosmisBaseUrl.replace(/\/?$/, "/downloads/Notices/");
+    const { recentNotices, previousNotices } = await getNotices(phpsessid);
+    if (aborted) return;
 
-    let fullHtml = "";
-    const sentKeys = new Set();
+    const send = (type, notice) =>
+      res.write(`data: ${JSON.stringify({ type, notice })}\n\n`);
 
-    for await (const chunk of stream) {
-      fullHtml += chunk.toString();
-
-      // Parse current state of HTML
-      const $ = cheerio.load(fullHtml);
-      const tables = $("table");
-
-      // Process Recent (Table 1)
-      if (tables.length > 1) {
-        const recent = parseNoticeTableFragment($, tables[1], 0, downloadsBase);
-        for (const notice of recent) {
-          const key = `recent-${notice.title}-${notice.date}-${notice.time}`;
-          if (!sentKeys.has(key)) {
-            res.write(`data: ${JSON.stringify({ type: "recent", notice })}\n\n`);
-            sentKeys.add(key);
-          }
-        }
-      }
-
-      // Process Previous (Table 2) - limit to 50
-      if (tables.length > 2) {
-        const previous = parseNoticeTableFragment($, tables[2], 100, downloadsBase, 50);
-        for (const notice of previous) {
-          const key = `previous-${notice.title}-${notice.date}-${notice.time}`;
-          if (!sentKeys.has(key)) {
-            res.write(`data: ${JSON.stringify({ type: "previous", notice })}\n\n`);
-            sentKeys.add(key);
-          }
-        }
-      }
+    for (const notice of recentNotices) {
+      if (aborted) return;
+      send("recent", notice);
+    }
+    for (const notice of previousNotices) {
+      if (aborted) return;
+      send("previous", notice);
     }
 
     res.write("event: done\ndata: {}\n\n");
     res.end();
   } catch (err) {
     console.error("GET /notices/stream error:", err.message);
-    res.write(`event: error\ndata: ${JSON.stringify({ message: "Error streaming notices" })}\n\n`);
-    res.end();
-  }
-}
-
-/**
- * Helper to parse a notice table from a cheerio instance and a specific table element.
- */
-function parseNoticeTableFragment($, table, startId, downloadsBase, limit = 0) {
-  const notices = [];
-  const rows = $(table).find("tr");
-  let count = 0;
-
-  for (let i = 1; i < rows.length; i++) {
-    if (limit > 0 && count >= limit) break;
-
-    const cells = $(rows[i]).find("td");
-    if (cells.length < 4) continue;
-
-    const dateTimeRaw = $(cells.eq(1)).text().trim();
-    const title = $(cells.eq(2)).text().trim();
-    const linkEl = $(cells.eq(3)).find("a");
-    const href = linkEl.attr("href") || "";
-
-    // Check if row is complete. Incomplete rows will be skipped and picked up in next chunk.
-    if (!title || !href || !dateTimeRaw.includes("/")) continue;
-
-    const [datePart, timePart] = dateTimeRaw.split("/");
-
-    let fileUrl = href;
-    const baseUrl = config.fosmisBaseUrl.replace(/\/?$/, "/");
-
-    if (href.startsWith("http")) {
-      fileUrl = href;
-    } else if (href.startsWith("../downloads/Notices/")) {
-      fileUrl = downloadsBase + href.replace("../downloads/Notices/", "");
-    } else if (href.startsWith("../")) {
-      // Goes to root of the portal
-      fileUrl = baseUrl + href.replace(/^\.\.\//, "");
-    } else if (href) {
-      // Relative to /forms/
-      fileUrl = baseUrl + "forms/" + href;
+    if (!aborted) {
+      res.write(
+        `event: error\ndata: ${JSON.stringify({ message: "Error streaming notices" })}\n\n`
+      );
+      res.end();
     }
-
-    count++;
-    const fileType = getFileTypeFromUrl(href);
-
-    notices.push({
-      id: startId + count,
-      date: datePart || "",
-      time: timePart || "",
-      title,
-      fileUrl,
-      fileType,
-      // If no href, title might be the actual content
-      content: !href ? title : undefined
-    });
   }
-  return notices;
-}
-
-function getFileTypeFromUrl(href) {
-  if (!href) return "other";
-  const ext = href.split(".").pop().toLowerCase().split(/[?#]/)[0];
-  if (ext === "pdf") return "pdf";
-  if (ext === "docx" || ext === "doc") return "docx";
-  if (ext === "html" || ext === "htm") return "html";
-  if (ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "gif" || ext === "jfif" || ext === "webp")
-    return (ext === "jpeg" || ext === "jfif") ? "jpg" : ext;
-  return "other";
 }
 
 /**
@@ -184,8 +105,8 @@ export async function proxyNoticeFile(req, res) {
   try {
     const fetchOptions = {
       headers: {
-        "Referer": "https://paravi.ruh.ac.lk/fosmis/",
-      }
+        Referer: "https://paravi.ruh.ac.lk/fosmis/",
+      },
     };
 
     if (session) {
@@ -209,11 +130,10 @@ export async function proxyNoticeFile(req, res) {
       res.setHeader("Content-Length", contentLength);
     }
 
-    // For HTML files, we want to inject a <base> tag so relative paths work
+    // For HTML files, inject a <base> tag so relative paths resolve
     if (contentType && contentType.includes("text/html")) {
       let html = await response.text();
 
-      // Inject <base> tag after <head> or at the beginning
       const baseTag = `<base href="${url}">`;
       if (html.includes("<head>")) {
         html = html.replace("<head>", `<head>${baseTag}`);

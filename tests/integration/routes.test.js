@@ -3,11 +3,29 @@ import { jest } from "@jest/globals";
 // Define mock functions externally so we have guaranteed references
 const mockGetSessionAndLogin = jest.fn();
 const mockFetchResultsHtml = jest.fn();
+const mockFetchCourseRegistrationHtml = jest.fn();
+const mockFetchHomepageHtml = jest.fn();
+const mockFetchNoticesHtmlRaw = jest.fn();
 
-// Mock fosmis service before importing app
+// Must be the same class the mock factory exports, so the controller's
+// `err instanceof FosmisUnreachableError` check matches.
+class MockFosmisUnreachableError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "FosmisUnreachableError";
+  }
+}
+
+// Mock fosmis service before importing app.
+// NOTE: this factory must export everything the real module exports that any
+// controller imports — a missing name makes the whole suite fail to load.
 jest.unstable_mockModule("../../src/services/fosmis.service.js", () => ({
   getSessionAndLogin: mockGetSessionAndLogin,
   fetchResultsHtml: mockFetchResultsHtml,
+  fetchCourseRegistrationHtml: mockFetchCourseRegistrationHtml,
+  fetchHomepageHtml: mockFetchHomepageHtml,
+  fetchNoticesHtmlRaw: mockFetchNoticesHtmlRaw,
+  FosmisUnreachableError: MockFosmisUnreachableError,
 }));
 
 const { default: app } = await import("../../src/app.js");
@@ -16,6 +34,11 @@ const { default: request } = await import("supertest");
 beforeEach(() => {
   mockGetSessionAndLogin.mockReset();
   mockFetchResultsHtml.mockReset();
+  mockFetchCourseRegistrationHtml.mockReset();
+  mockFetchHomepageHtml.mockReset();
+  mockFetchNoticesHtmlRaw.mockReset();
+  // Course registration is fetched in parallel with results by several routes.
+  mockFetchCourseRegistrationHtml.mockResolvedValue("<html></html>");
 });
 
 describe("GET /health", () => {
@@ -39,16 +62,31 @@ describe("POST /init", () => {
     expect(res.body.sessionId).toBe("test-session-id");
   });
 
-  it("returns 200 with null sessionId when FOSMIS is unreachable", async () => {
+  // A rejected password and an unreachable portal must not look the same to
+  // the user — reporting a timeout as "invalid credentials" sends people off
+  // to reset a password that was never wrong.
+  it("returns 401 when FOSMIS rejects the credentials", async () => {
     mockGetSessionAndLogin.mockResolvedValue(null);
 
     const res = await request(app)
       .post("/init")
       .send({ username: "sc12345", password: "MOCK_TEST_VALUE" });
 
-    // Matches original behavior: always 200, frontend handles null session
-    expect(res.status).toBe(200);
-    expect(res.body.sessionId).toBeNull();
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid credentials/i);
+  });
+
+  it("returns 503 when FOSMIS is unreachable", async () => {
+    mockGetSessionAndLogin.mockRejectedValue(
+      new MockFosmisUnreachableError("The operation was aborted.")
+    );
+
+    const res = await request(app)
+      .post("/init")
+      .send({ username: "sc12345", password: "MOCK_TEST_VALUE" });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toMatch(/not responding/i);
   });
 });
 

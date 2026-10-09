@@ -5,7 +5,6 @@ const mockGetSessionAndLogin = jest.fn();
 const mockFetchResultsHtml = jest.fn();
 const mockFetchCourseRegistrationHtml = jest.fn();
 const mockFetchHomepageHtml = jest.fn();
-const mockFetchNoticesHtmlRaw = jest.fn();
 
 // Must be the same class the mock factory exports, so the controller's
 // `err instanceof FosmisUnreachableError` check matches.
@@ -24,7 +23,6 @@ jest.unstable_mockModule("../../src/services/fosmis.service.js", () => ({
   fetchResultsHtml: mockFetchResultsHtml,
   fetchCourseRegistrationHtml: mockFetchCourseRegistrationHtml,
   fetchHomepageHtml: mockFetchHomepageHtml,
-  fetchNoticesHtmlRaw: mockFetchNoticesHtmlRaw,
   FosmisUnreachableError: MockFosmisUnreachableError,
 }));
 
@@ -36,7 +34,6 @@ beforeEach(() => {
   mockFetchResultsHtml.mockReset();
   mockFetchCourseRegistrationHtml.mockReset();
   mockFetchHomepageHtml.mockReset();
-  mockFetchNoticesHtmlRaw.mockReset();
   // Course registration is fetched in parallel with results by several routes.
   mockFetchCourseRegistrationHtml.mockResolvedValue("<html></html>");
 });

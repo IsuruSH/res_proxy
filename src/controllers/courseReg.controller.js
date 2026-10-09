@@ -1,8 +1,8 @@
 import { fetchCourseRegistrationHtml } from "../services/fosmis.service.js";
 import {
   extractSession,
-  parseCourseRegistrationHtml,
 } from "../utils/gpa.js";
+import { parseCourseRegistrationHtml } from "../utils/courseReg.js";
 
 /**
  * GET /course-registration
@@ -22,6 +22,10 @@ export async function getCourseRegistration(req, res) {
     res.json({
       currentSemester: data.currentSemester,
       allCourses: data.allCourses,
+      // Only present while a registration window is open.
+      optionalCourses: data.optionalCourses,
+      registrationOpen: data.registrationOpen,
+      closingDate: data.closingDate,
       totalConfirmedCredits: data.totalConfirmedCredits,
       departments: data.departments,
       nonDegreeSubjects: [...data.nonDegreeSet],

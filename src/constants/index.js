@@ -66,9 +66,14 @@ export const DECEASED_STNUM = ["11845"];
 
 /**
  * Department prefix mapping for subject-wise GPA calculation.
+ *
+ * MSP units are Mathematics Special course units, taken only by students on
+ * the Mathematics Special degree. They belong to the Mathematics department,
+ * so they count towards the Maths GPA alongside MAT/AMT/IMT — without this a
+ * special-degree student's Maths GPA silently omits their specialist subjects.
  */
 export const DEPARTMENT_PREFIXES = {
-  math: ["AMT", "IMT", "MAT"],
+  math: ["AMT", "IMT", "MAT", "MSP"],
   chem: ["CHE"],
   phy: ["PHY"],
   zoo: ["ZOO"],

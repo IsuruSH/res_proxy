@@ -6,8 +6,7 @@ import {
 } from "../services/fosmis.service.js";
 import { cacheDelPrefix } from "../services/cache.service.js";
 import {
-  parseResultsHtml,
-  parseCourseRegistrationHtml,
+  parseResultsHtml,
   calculateGpas,
   initDepartmentCredits,
   accumulateCredits,
@@ -15,6 +14,7 @@ import {
   computeLevelGpas,
   computeSubjectBreakdown,
 } from "../utils/gpa.js";
+import { parseCourseRegistrationHtml } from "../utils/courseReg.js";
 
 /**
  * POST /init

@@ -54,6 +54,14 @@ describe("getDepartmentKey", () => {
     expect(getDepartmentKey("MAT3142")).toBe("math");
   });
 
+  it("counts Mathematics Special (MSP) units as maths", () => {
+    // Taken only on the Maths Special degree; omitting them left those
+    // students' Maths GPA missing their specialist subjects entirely.
+    expect(getDepartmentKey("MSP3012")).toBe("math");
+    expect(getDepartmentKey("MSP412β")).toBe("math");
+    expect(getDepartmentKey("msp3012")).toBe("math"); // case-insensitive
+  });
+
   it("identifies science subjects", () => {
     expect(getDepartmentKey("CHE1012")).toBe("chem");
     expect(getDepartmentKey("PHY2013")).toBe("phy");
@@ -147,6 +155,15 @@ describe("accumulateCredits", () => {
     expect(accum.math.credits).toBe(2);
     expect(accum.math.gradePoints).toBe(8.0);
     expect(accum.chem.credits).toBe(0);
+  });
+
+  it("rolls MSP (Maths Special) credits into the maths accumulator", () => {
+    const accum = initDepartmentCredits();
+    accumulateCredits(accum, "MSP3013", "B+"); // 3 credits, 3.3 * 3 = 9.9
+
+    expect(accum.math.credits).toBe(3);
+    expect(accum.math.gradePoints).toBeCloseTo(9.9, 10);
+    expect(accum.total.credits).toBe(3);
   });
 
   it("skips non-credit subjects", () => {

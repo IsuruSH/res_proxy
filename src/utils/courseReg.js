@@ -116,6 +116,56 @@ function readTable($, table, columns) {
 }
 
 /**
+ * Pull the two credit totals out of the page.
+ *
+ * FOSMIS prints the lifetime total, and — only while a registration window is
+ * open — a second sentence for the current semester *above* it:
+ *
+ *   "You have registered 17.50 (confirmed) credits in this semester"
+ *   "You have registered 104.00 (Confirmed) Credits"       <- the real total
+ *
+ * Both sentences match the same shape, so taking the first match returned the
+ * semester figure to anyone mid-registration while looking perfectly correct
+ * for everyone else — a student with 104 credits was told they had 17.5, and
+ * that number drives the credit progress bar and every "total credits"
+ * degree requirement. The two are told apart by the trailing words, not by
+ * position, because the semester sentence is absent most of the year.
+ *
+ * Wordings seen in the wild, all handled here:
+ *
+ *   "You Have Register for 20.00 Credits for This Semester"          semester
+ *   "You Have registered for 7.50(Confirm) Credits"                  semester
+ *   "You have registered 17.50 (confirmed) credits in this semester" semester
+ *   "You have registered 50.00(Confirmed) Credits"                   total
+ *   "You have registered 104.00 (Confirmed) Credits"                 total
+ *
+ * Two markers distinguish them, and a sentence needs only one: the word
+ * "for" before the number, or "this semester" after it. Anything with
+ * neither is the lifetime total.
+ */
+function parseCreditTotals(bodyText) {
+  const re =
+    /have register(?:ed)?\s*(for\s+)?([\d.]+)\s*(?:\(\s*confirm(?:ed)?\s*\))?\s*credits([^.]{0,25})/gi;
+
+  let total = 0;
+  let semester = 0;
+
+  for (const m of bodyText.matchAll(re)) {
+    const value = parseFloat(m[2]);
+    if (isNaN(value)) continue;
+
+    const isSemester = Boolean(m[1]) || /this semester/i.test(m[3]);
+    if (isSemester) {
+      if (!semester) semester = value;
+    } else if (!total) {
+      total = value;
+    }
+  }
+
+  return { total, semester };
+}
+
+/**
  * Parse the FOSMIS course registration page HTML.
  *
  * Returns:
@@ -133,18 +183,8 @@ export function parseCourseRegistrationHtml(html) {
   const bodyText = $("body").text().replace(/\s+/g, " ");
 
   // --- Credit totals ---
-  // "You have registered 50.00(Confirmed) Credits"
-  const totalMatch = bodyText.match(
-    /have registered\s+([\d.]+)\s*\(Confirmed\)\s*Credits/i
-  );
-  const totalConfirmedCredits = totalMatch ? parseFloat(totalMatch[1]) : 0;
-
-  // Two wordings exist, depending on whether registration is open:
-  //   "You Have Register for 20.00 Credits for This Semester"   (window open)
-  //   "You Have registered for 7.50(Confirm) Credits"           (window closed)
-  const semCreditsMatch = bodyText.match(
-    /Have Register(?:ed)?\s+for\s+([\d.]+)\s*(?:\(Confirm(?:ed)?\))?\s*Credits/i
-  );
+  const { total: totalConfirmedCredits, semester: semesterCredits } =
+    parseCreditTotals(bodyText);
 
   const semMatch = bodyText.match(
     /Registered Subjects for\s+(\S+)\s+Academic year and Semester\s+(\d)/i
@@ -236,7 +276,7 @@ export function parseCourseRegistrationHtml(html) {
     currentSemester: {
       academicYear: semMatch ? semMatch[1] : "",
       semester: semMatch ? semMatch[2] : "",
-      credits: semCreditsMatch ? parseFloat(semCreditsMatch[1]) : 0,
+      credits: semesterCredits,
       courses: semesterCourses,
     },
     allCourses,

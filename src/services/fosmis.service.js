@@ -1,5 +1,6 @@
 import fetch from "node-fetch";
-import tough from "tough-cookie";
+// tough-cookie v6 is named exports only — it no longer ships a default.
+import { CookieJar } from "tough-cookie";
 import fetchCookie from "fetch-cookie";
 import config from "../config/index.js";
 import {
@@ -13,7 +14,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeFetchWithCookies() {
-  const jar = new tough.CookieJar();
+  const jar = new CookieJar();
   return { jar, fetch: fetchCookie(fetch, jar) };
 }
 

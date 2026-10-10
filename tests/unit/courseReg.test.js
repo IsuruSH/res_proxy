@@ -126,3 +126,71 @@ describe("parseCourseRegistrationHtml — registration closed", () => {
     expect(r.allCourses.map((c) => c.code)).toEqual(["MAT111β", "MAT121β"]);
   });
 });
+
+// --- Shape C: registration OPEN, with the "in this semester" wording ---
+// This is the shape that produced the bug: two credit sentences, the
+// semester one first. Taking the first match reported 17.5 to a student
+// who had actually completed 104 credits.
+const TWO_TOTALS_HTML = `
+<html><body>
+  <p>Registered Course Units for 2024_2025 Academic year and Semester 2</p>
+  <p>You have registered 17.50 (confirmed) credits in this semester</p>
+  <table>
+    <tr><th>Course Code</th><th>Course Name</th><th>Degree Status</th><th>Conf. Status</th></tr>
+    <tr><td>MSP3144</td><td>Topology</td><td>Degree</td><td>Confirmed</td></tr>
+  </table>
+  <p>All Course Units That You Are Registered Up Today</p>
+  <p>You have registered 104.00 (Confirmed) Credits</p>
+  <table>
+    <tr><th>Course Code</th><th>Course Name</th><th>Degree Status</th><th>Official Confirmation</th></tr>
+    <tr><td>MSP3144</td><td>Topology</td><td>Degree</td><td>Confirmed</td></tr>
+    <tr><td>MAT225β</td><td>Statistics</td><td>Non Degree</td><td>Confirmed</td></tr>
+  </table>
+</body></html>`;
+
+describe("parseCourseRegistrationHtml — two credit sentences", () => {
+  const r = parseCourseRegistrationHtml(TWO_TOTALS_HTML);
+
+  it("takes the lifetime total, not the semester figure that precedes it", () => {
+    expect(r.totalConfirmedCredits).toBe(104);
+  });
+
+  it("still reports the semester figure separately", () => {
+    expect(r.currentSemester.credits).toBe(17.5);
+  });
+
+  it("does not let the mix-up disturb Non Degree detection", () => {
+    expect(r.nonDegreeSet.has("MAT225Β")).toBe(true);
+  });
+});
+
+describe("credit sentence wordings", () => {
+  const totalOf = (sentence) =>
+    parseCourseRegistrationHtml(`<html><body><p>${sentence}</p></body></html>`)
+      .totalConfirmedCredits;
+  const semesterOf = (sentence) =>
+    parseCourseRegistrationHtml(`<html><body><p>${sentence}</p></body></html>`)
+      .currentSemester.credits;
+
+  it("reads a lifetime total with or without a space before the bracket", () => {
+    expect(totalOf("You have registered 50.00(Confirmed) Credits")).toBe(50);
+    expect(totalOf("You have registered 104.00 (Confirmed) Credits")).toBe(104);
+  });
+
+  it("classifies by 'for' before the number", () => {
+    expect(semesterOf("You Have Register for 20.00 Credits for This Semester")).toBe(20);
+    expect(semesterOf("You Have registered for 7.50(Confirm) Credits")).toBe(7.5);
+    expect(totalOf("You Have registered for 7.50(Confirm) Credits")).toBe(0);
+  });
+
+  it("classifies by 'in this semester' after the number", () => {
+    const s = "You have registered 17.50 (confirmed) credits in this semester";
+    expect(semesterOf(s)).toBe(17.5);
+    expect(totalOf(s)).toBe(0);
+  });
+
+  it("returns zero rather than a wrong number when nothing matches", () => {
+    expect(totalOf("No credit information on this page")).toBe(0);
+    expect(semesterOf("No credit information on this page")).toBe(0);
+  });
+});

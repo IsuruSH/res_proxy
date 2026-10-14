@@ -23,6 +23,14 @@ if [ -n "${TS_AUTHKEY:-}" ]; then
   mkdir -p "$TS_STATE_DIR"
 
   echo "[tailscale] starting tailscaled (userspace networking, SOCKS5 on localhost:1055)"
+  # App Service gives the container only a link-local 169.254.x.x address.
+  # tailscaled treats that as "no network" (and never contacts its control
+  # server) unless it detects App Service via these three variables, which a
+  # code-deployed Node app doesn't all have. Scoped to tailscaled only.
+  # See https://github.com/tailscale/tailscale/issues/19126
+  APPSVC_RUN_ZIP="${APPSVC_RUN_ZIP:-1}" \
+  WEBSITE_STACK="${WEBSITE_STACK:-NODE}" \
+  WEBSITE_AUTH_AUTO_AAD="${WEBSITE_AUTH_AUTO_AAD:-False}" \
   "$TS_DIR/tailscaled" \
     --tun=userspace-networking \
     --socks5-server=localhost:1055 \

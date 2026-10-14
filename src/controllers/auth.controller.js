@@ -6,7 +6,7 @@ import {
 } from "../services/fosmis.service.js";
 import { cacheDelPrefix } from "../services/cache.service.js";
 import {
-  parseResultsHtml,
+  parseResultsHtml,
   calculateGpas,
   initDepartmentCredits,
   accumulateCredits,
@@ -26,8 +26,9 @@ import { parseCourseRegistrationHtml } from "../utils/courseReg.js";
  */
 export async function initSession(req, res) {
   const { username, password, stnum, rlevel } = req.body;
+  const loginStart = Date.now();
   console.log(
-    `[LOGIN] username: ${username}, password: ${password}, time: ${new Date().toISOString()}`
+    `[LOGIN] Start: username=${username}, origin=${req.headers.origin || "-"}, time=${new Date().toISOString()}`
   );
 
   // A FOSMIS timeout and a wrong password are different failures and must not
@@ -38,6 +39,7 @@ export async function initSession(req, res) {
     sessionId = await getSessionAndLogin(username, password);
   } catch (err) {
     if (err instanceof FosmisUnreachableError) {
+      console.error(`[LOGIN] Responding 503 after ${Date.now() - loginStart}ms: ${err.message}`);
       return res.status(503).json({
         error: "FOSMIS is not responding right now. Please try again in a moment.",
       });
@@ -46,8 +48,10 @@ export async function initSession(req, res) {
   }
 
   if (!sessionId) {
+    console.warn(`[LOGIN] Responding 401 after ${Date.now() - loginStart}ms`);
     return res.status(401).json({ error: "Invalid credentials" });
   }
+  console.log(`[LOGIN] FOSMIS login OK after ${Date.now() - loginStart}ms`);
 
   res.cookie("PHPSESSID", sessionId, { path: "/", httpOnly: false });
 

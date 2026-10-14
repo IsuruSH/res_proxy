@@ -54,28 +54,44 @@ async function robustFosmisFetch(
 ) {
   let attempt = 0;
   const start = Date.now();
+  const method = options.method || "GET";
+  const logUrl = url.split("?")[0];
 
   while (attempt <= maxRetries) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const attemptStart = Date.now();
 
     try {
       attempt++;
+      console.log(`[FOSMIS] -> ${method} ${logUrl} (attempt ${attempt}/${maxRetries + 1}, timeout ${timeoutMs}ms)`);
       const response = await fetchFn(url, {
         ...options,
         signal: controller.signal,
       });
 
       const duration = Date.now() - start;
+      console.log(
+        `[FOSMIS] <- ${response.status} ${method} ${logUrl} in ${Date.now() - attemptStart}ms` +
+          ` (server: ${response.headers.get("server") || "-"}, location: ${response.headers.get("location") || "-"})`
+      );
       if (attempt > 1) {
-        console.log(`[FOSMIS] ${url} succeeded on attempt ${attempt} (${duration}ms)`);
+        console.log(`[FOSMIS] ${logUrl} succeeded on attempt ${attempt} (${duration}ms)`);
       } else if (duration > 2000) {
-        console.warn(`[FOSMIS] Slow response from ${url}: ${duration}ms`);
+        console.warn(`[FOSMIS] Slow response from ${logUrl}: ${duration}ms`);
       }
 
       return response;
     } catch (err) {
       const duration = Date.now() - start;
+      // node-fetch wraps the socket error; the real cause (ECONNREFUSED,
+      // ETIMEDOUT, cert errors, ...) is on err.code / err.cause.
+      console.warn(
+        `[FOSMIS] x ${method} ${logUrl} failed after ${Date.now() - attemptStart}ms:` +
+          ` name=${err.name} code=${err.code ?? err.cause?.code ?? "-"}` +
+          ` syscall=${err.erroredSysCall ?? err.syscall ?? "-"} message=${err.message}` +
+          (err.name === "AbortError" ? " (no response within timeout: connection hung)" : "")
+      );
       const isTransient =
         err.name === "AbortError" ||
         err.code === "ECONNRESET" ||
@@ -84,7 +100,7 @@ async function robustFosmisFetch(
 
       if (isTransient && attempt <= maxRetries) {
         console.warn(
-          `[FOSMIS] Attempt ${attempt} failed for ${url} (${err.message}). Retrying...`
+          `[FOSMIS] Attempt ${attempt} failed for ${logUrl} (${err.message}). Retrying...`
         );
         // Small backoff
         await new Promise((r) => setTimeout(r, 1000 * attempt));
@@ -92,7 +108,7 @@ async function robustFosmisFetch(
       }
 
       console.error(
-        `[FOSMIS] Request failed after ${attempt} attempts: ${url} (${err.message})`
+        `[FOSMIS] Request failed after ${attempt} attempts (${duration}ms total): ${logUrl} (${err.message})`
       );
       throw err;
     } finally {
@@ -118,6 +134,7 @@ export async function getSessionAndLogin(username, password) {
 
   try {
     // Step 1 – Hit index.php to obtain a session cookie
+    console.log("[LOGIN] Step 1/3: requesting session cookie from FOSMIS");
     await robustFosmisFetch(
       `${config.fosmisBaseUrl}/index.php`,
       {},
@@ -129,6 +146,10 @@ export async function getSessionAndLogin(username, password) {
     const cookies = await jar.getCookies(`${config.fosmisBaseUrl}/index.php`);
     const sessionCookie = cookies.find((c) => c.key === "PHPSESSID");
     const sessionId = sessionCookie ? sessionCookie.value : null;
+    console.log(
+      `[LOGIN] Step 1/3 done: cookies=[${cookies.map((c) => c.key).join(", ")}], PHPSESSID ${sessionId ? "received" : "MISSING"}`
+    );
+    console.log("[LOGIN] Step 2/3: posting credentials");
 
     // Step 2 – POST credentials to login.php
     //
@@ -155,6 +176,7 @@ export async function getSessionAndLogin(username, password) {
     // Step 3 – Verify the login actually succeeded.
     // FOSMIS answers 200 even when the credentials were wrong, so the status
     // code tells us nothing; the only signal is whether we got the login form back.
+    console.log("[LOGIN] Step 3/3: verifying login");
     const verifyRes = await robustFosmisFetch(
       `${config.fosmisBaseUrl}/index.php`,
       {},
@@ -163,6 +185,9 @@ export async function getSessionAndLogin(username, password) {
       LOGIN_RETRIES
     );
     const verifyHtml = await verifyRes.text();
+    console.log(
+      `[LOGIN] Step 3/3 done: status=${verifyRes.status}, bodyLength=${verifyHtml.length}, loginFormShown=${verifyHtml.includes('name="uname"')}`
+    );
 
     if (
       verifyHtml.includes('name="uname"') ||
@@ -183,7 +208,9 @@ export async function getSessionAndLogin(username, password) {
 
     return sessionId;
   } catch (err) {
-    console.error("FOSMIS login error:", err.message);
+    console.error(
+      `[LOGIN] FOSMIS login error: name=${err.name} code=${err.code ?? err.cause?.code ?? "-"} message=${err.message}`
+    );
     throw new FosmisUnreachableError(err.message);
   }
 }

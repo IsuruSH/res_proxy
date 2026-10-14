@@ -3,9 +3,11 @@ import authRoutes from "./auth.routes.js";
 import resultsRoutes from "./results.routes.js";
 import homeRoutes from "./home.routes.js";
 import courseRegRoutes from "./courseReg.routes.js";
+import debugRoutes from "./debug.routes.js";
 
 const router = Router();
 
+router.use(debugRoutes);
 router.use(authRoutes);
 router.use(resultsRoutes);
 router.use(homeRoutes);

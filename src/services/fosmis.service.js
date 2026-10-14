@@ -2,6 +2,7 @@ import fetch from "node-fetch";
 // tough-cookie v6 is named exports only — it no longer ships a default.
 import { CookieJar } from "tough-cookie";
 import fetchCookie from "fetch-cookie";
+import { SocksProxyAgent } from "socks-proxy-agent";
 import config from "../config/index.js";
 import {
   cacheGet,
@@ -22,6 +23,13 @@ function makeFetchWithCookies() {
 const FOSMIS_HEADERS = {
   Referer: "https://paravi.ruh.ac.lk/fosmis/",
 };
+
+export const fosmisAgent = config.fosmisProxyUrl
+  ? new SocksProxyAgent(config.fosmisProxyUrl)
+  : undefined;
+console.log(
+  `[FOSMIS] Outbound route: ${config.fosmisProxyUrl ? `via proxy ${config.fosmisProxyUrl}` : "direct"}`
+);
 
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_RETRIES = 2;
@@ -67,6 +75,7 @@ async function robustFosmisFetch(
       console.log(`[FOSMIS] -> ${method} ${logUrl} (attempt ${attempt}/${maxRetries + 1}, timeout ${timeoutMs}ms)`);
       const response = await fetchFn(url, {
         ...options,
+        agent: fosmisAgent,
         signal: controller.signal,
       });
 

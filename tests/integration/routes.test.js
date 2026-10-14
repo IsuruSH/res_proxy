@@ -24,6 +24,7 @@ jest.unstable_mockModule("../../src/services/fosmis.service.js", () => ({
   fetchCourseRegistrationHtml: mockFetchCourseRegistrationHtml,
   fetchHomepageHtml: mockFetchHomepageHtml,
   FosmisUnreachableError: MockFosmisUnreachableError,
+  fosmisAgent: undefined,
 }));
 
 const { default: app } = await import("../../src/app.js");

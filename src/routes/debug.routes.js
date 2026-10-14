@@ -4,6 +4,7 @@ import net from "node:net";
 import tls from "node:tls";
 import fetch from "node-fetch";
 import config from "../config/index.js";
+import { fosmisAgent } from "../services/fosmis.service.js";
 
 const router = Router();
 const STEP_TIMEOUT_MS = 15000;
@@ -66,8 +67,8 @@ function tlsHandshake(ip, servername) {
   });
 }
 
-async function httpGet(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(STEP_TIMEOUT_MS), redirect: "manual" });
+async function httpGet(url, agent) {
+  const res = await fetch(url, { agent, signal: AbortSignal.timeout(STEP_TIMEOUT_MS), redirect: "manual" });
   const body = await res.text();
   return {
     status: res.status,
@@ -109,7 +110,19 @@ router.get("/debug/fosmis", async (_req, res) => {
 
   report.httpIndex = await timed(() => httpGet(`${config.fosmisBaseUrl}/index.php`));
 
-  report.diagnosis = diagnose(report);
+  if (fosmisAgent) {
+    report.proxy = { url: config.fosmisProxyUrl };
+    report.proxy.egressIp = await timed(async () => {
+      const r = await fetch("https://api.ipify.org?format=json", {
+        agent: fosmisAgent,
+        signal: AbortSignal.timeout(STEP_TIMEOUT_MS),
+      });
+      return { ip: (await r.json()).ip };
+    });
+    report.proxy.httpIndex = await timed(() => httpGet(`${config.fosmisBaseUrl}/index.php`, fosmisAgent));
+  }
+
+  report.diagnosis = fosmisAgent ? diagnoseProxy(report) : diagnose(report);
   console.log("[DEBUG] FOSMIS connectivity report:", JSON.stringify(report));
   res.json(report);
 });
@@ -126,6 +139,20 @@ function diagnose(r) {
   if (!r.httpIndex.ok) return "Connection and TLS work but the HTTP request fails or hangs: FOSMIS (or a WAF in front of it) is not answering requests from this server.";
   if (r.httpIndex.status >= 400) return `FOSMIS answers but returns HTTP ${r.httpIndex.status} to this server: likely a WAF/IP-based block page.`;
   return "FOSMIS is reachable from this server. If login still fails, check the [FOSMIS] and [LOGIN] trace lines in the logs.";
+}
+
+function diagnoseProxy(r) {
+  const p = r.proxy;
+  if (!p.egressIp.ok) {
+    return `The proxy at ${p.url} is not working (${p.egressIp.error.code || p.egressIp.error.message}): check that Tailscale started and is connected (see [tailscale] lines in the logs).`;
+  }
+  if (p.egressIp.ip === r.egressIp.ip) {
+    return "The proxy works but traffic still leaves from this server's own IP: the Tailscale exit node is not in use (check --exit-node and that the exit node is approved in the admin console).";
+  }
+  if (!p.httpIndex.ok) {
+    return `Traffic exits via ${p.egressIp.ip} but FOSMIS still does not answer: that IP is not allowed by FOSMIS either (is the exit node in Sri Lanka?).`;
+  }
+  return `FOSMIS is reachable through the proxy (exit IP ${p.egressIp.ip}). Logins will use this route.`;
 }
 
 export default router;

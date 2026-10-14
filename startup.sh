@@ -40,7 +40,11 @@ if [ -n "${TS_AUTHKEY:-}" ]; then
     "$TS_DIR/tailscale" --socket="$TS_SOCKET" status || true
     export FOSMIS_PROXY_URL="${FOSMIS_PROXY_URL:-socks5h://localhost:1055}"
   else
-    echo "[tailscale] ERROR: 'tailscale up' failed; FOSMIS requests will go direct and fail. See /home/LogFiles/tailscaled.log"
+    echo "[tailscale] ERROR: 'tailscale up' failed; FOSMIS requests will go direct and fail."
+    echo "[tailscale] ---- tailscale status ----"
+    "$TS_DIR/tailscale" --socket="$TS_SOCKET" status 2>&1 | sed 's/^/[tailscale] /'
+    echo "[tailscale] ---- last 60 lines of /home/LogFiles/tailscaled.log ----"
+    tail -n 60 /home/LogFiles/tailscaled.log | sed 's/^/[tailscaled] /'
   fi
 fi
 

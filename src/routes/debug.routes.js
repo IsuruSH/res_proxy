@@ -2,12 +2,15 @@ import { Router } from "express";
 import dns from "node:dns/promises";
 import net from "node:net";
 import tls from "node:tls";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import fetch from "node-fetch";
 import config from "../config/index.js";
 import { fosmisAgent } from "../services/fosmis.service.js";
 
 const router = Router();
 const STEP_TIMEOUT_MS = 15000;
+const execFileAsync = promisify(execFile);
 
 function describeError(err) {
   return {
@@ -122,6 +125,14 @@ router.get("/debug/fosmis", async (_req, res) => {
     report.proxy.httpIndex = await timed(() => httpGet(`${config.fosmisBaseUrl}/index.php`, fosmisAgent));
   }
 
+  if (process.env.TS_CLI) {
+    report.tailscale = {
+      exitNodeSetting: process.env.TS_EXIT_NODE || "(TS_EXIT_NODE not set)",
+      status: await tailscaleCli("status"),
+      exitNodes: await tailscaleCli("exit-node", "list"),
+    };
+  }
+
   report.diagnosis = fosmisAgent ? diagnoseProxy(report) : diagnose(report);
   console.log("[DEBUG] FOSMIS connectivity report:", JSON.stringify(report));
   res.json(report);
@@ -139,6 +150,16 @@ function diagnose(r) {
   if (!r.httpIndex.ok) return "Connection and TLS work but the HTTP request fails or hangs: FOSMIS (or a WAF in front of it) is not answering requests from this server.";
   if (r.httpIndex.status >= 400) return `FOSMIS answers but returns HTTP ${r.httpIndex.status} to this server: likely a WAF/IP-based block page.`;
   return "FOSMIS is reachable from this server. If login still fails, check the [FOSMIS] and [LOGIN] trace lines in the logs.";
+}
+
+async function tailscaleCli(...args) {
+  const [bin, ...baseArgs] = process.env.TS_CLI.split(" ");
+  try {
+    const { stdout, stderr } = await execFileAsync(bin, [...baseArgs, ...args], { timeout: 10000 });
+    return (stdout + stderr).trim().split("\n");
+  } catch (err) {
+    return [`error: ${err.message}`, ...((err.stdout || "") + (err.stderr || "")).trim().split("\n")];
+  }
 }
 
 function diagnoseProxy(r) {

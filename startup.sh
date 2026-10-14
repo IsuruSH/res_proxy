@@ -45,8 +45,11 @@ if [ -n "${TS_AUTHKEY:-}" ]; then
       --hostname="${TS_HOSTNAME:-azure-res-proxy}" \
       --exit-node="${TS_EXIT_NODE:-}" \
       --timeout=60s; then
-    "$TS_DIR/tailscale" --socket="$TS_SOCKET" status || true
+    "$TS_DIR/tailscale" --socket="$TS_SOCKET" status 2>&1 | sed 's/^/[tailscale] /' || true
+    echo "[tailscale] ---- exit nodes visible to this machine ----"
+    "$TS_DIR/tailscale" --socket="$TS_SOCKET" exit-node list 2>&1 | sed 's/^/[tailscale] /' || true
     export FOSMIS_PROXY_URL="${FOSMIS_PROXY_URL:-socks5h://localhost:1055}"
+    export TS_CLI="$TS_DIR/tailscale --socket=$TS_SOCKET"
   else
     echo "[tailscale] ERROR: 'tailscale up' failed; FOSMIS requests will go direct and fail."
     echo "[tailscale] ---- tailscale status ----"
